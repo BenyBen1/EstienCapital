@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -11,24 +10,16 @@ export default function WelcomeScreen() {
   const { colors } = useTheme();
 
   return (
-    <LinearGradient
-      colors={[colors.background, colors.secondary]}
-      style={styles.container}
-    >
-      <StatusBar style="light" />
-      
+    <View style={[styles.container, { backgroundColor: '#fff' }]}>
+      <StatusBar style="dark" />
       <View style={styles.content}>
         <View style={styles.logoContainer}>
-          <View style={[styles.logoPlaceholder, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.logoText, { color: colors.background }]}>
-              ESTIEN
-            </Text>
-            <Text style={[styles.logoSubText, { color: colors.background }]}>
-              CAPITAL
-            </Text>
-          </View>
+          <Image
+            source={require('../assets/images/Estien Logo 2 Black transparent.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
-
         <View style={styles.welcomeContent}>
           <Text style={[styles.welcomeTitle, { color: colors.text }]}>
             Welcome to Estien Capital
@@ -40,7 +31,6 @@ export default function WelcomeScreen() {
             Secure access to cryptocurrency investments with expert analysis and institutional-grade portfolio management
           </Text>
         </View>
-
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: colors.primary }]}
@@ -50,7 +40,6 @@ export default function WelcomeScreen() {
               Create Account
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
             style={[styles.secondaryButton, { borderColor: colors.primary }]}
             onPress={() => router.push('/auth/login')}
@@ -61,7 +50,7 @@ export default function WelcomeScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -80,28 +69,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 40,
   },
-  logoPlaceholder: {
+  logoImage: {
     width: 120,
     height: 120,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-  },
-  logoSubText: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1,
-    marginTop: 2,
+    marginBottom: 16,
   },
   welcomeContent: {
     alignItems: 'center',

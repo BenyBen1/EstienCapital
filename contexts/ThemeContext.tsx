@@ -27,7 +27,7 @@ const lightColors: ThemeColors = {
   background: '#FFFFFF', // White
   surface: '#F8F9FA',
   text: '#1a1a1a',
-  textSecondary: '#6B7280',
+  textSecondary: '#000000',
   border: '#E5E7EB',
   error: '#EF4444',
   success: '#10B981',

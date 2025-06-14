@@ -2,65 +2,111 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Eye, EyeOff, ArrowLeft, Check } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 type AccountType = 'individual' | 'joint';
 
 export default function SignupScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [accountType, setAccountType] = useState<AccountType>('individual');
+  const { register, isLoading } = useAuth();
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    accountType: 'individual' as AccountType,
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters long';
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSignup = async () => {
-    if (!email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+    if (!validateForm()) return;
 
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (password.length < 8) {
-      Alert.alert('Error', 'Password must be at least 8 characters long');
-      return;
-    }
-
-    setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await register({
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        accountType: formData.accountType,
+      });
+      
       Alert.alert(
         'Account Created',
         'Your account has been created successfully. Please complete your KYC verification.',
         [
           {
             text: 'Continue',
-            onPress: () => router.push('/(tabs)'),
+            onPress: () => router.replace('/(tabs)'),
           },
         ]
       );
-    }, 1500);
+    } catch (error) {
+      Alert.alert(
+        'Registration Failed',
+        error instanceof Error ? error.message : 'An unexpected error occurred'
+      );
+    }
   };
+
+  const updateFormData = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner text="Creating your account..." overlay />;
+  }
 
   return (
     <LinearGradient
@@ -103,14 +149,14 @@ export default function SignupScreen() {
                   style={[
                     styles.accountTypeButton,
                     {
-                      backgroundColor: accountType === 'individual' ? colors.primary : colors.card,
-                      borderColor: accountType === 'individual' ? colors.primary : colors.border,
+                      backgroundColor: formData.accountType === 'individual' ? colors.primary : colors.card,
+                      borderColor: formData.accountType === 'individual' ? colors.primary : colors.border,
                     },
                   ]}
-                  onPress={() => setAccountType('individual')}
+                  onPress={() => updateFormData('accountType', 'individual')}
                 >
                   <View style={styles.radioContainer}>
-                    {accountType === 'individual' && (
+                    {formData.accountType === 'individual' && (
                       <Check size={16} color={colors.background} />
                     )}
                   </View>
@@ -118,7 +164,7 @@ export default function SignupScreen() {
                     style={[
                       styles.accountTypeText,
                       {
-                        color: accountType === 'individual' ? colors.background : colors.text,
+                        color: formData.accountType === 'individual' ? colors.background : colors.text,
                       },
                     ]}
                   >
@@ -130,14 +176,14 @@ export default function SignupScreen() {
                   style={[
                     styles.accountTypeButton,
                     {
-                      backgroundColor: accountType === 'joint' ? colors.primary : colors.card,
-                      borderColor: accountType === 'joint' ? colors.primary : colors.border,
+                      backgroundColor: formData.accountType === 'joint' ? colors.primary : colors.card,
+                      borderColor: formData.accountType === 'joint' ? colors.primary : colors.border,
                     },
                   ]}
-                  onPress={() => setAccountType('joint')}
+                  onPress={() => updateFormData('accountType', 'joint')}
                 >
                   <View style={styles.radioContainer}>
-                    {accountType === 'joint' && (
+                    {formData.accountType === 'joint' && (
                       <Check size={16} color={colors.background} />
                     )}
                   </View>
@@ -145,7 +191,7 @@ export default function SignupScreen() {
                     style={[
                       styles.accountTypeText,
                       {
-                        color: accountType === 'joint' ? colors.background : colors.text,
+                        color: formData.accountType === 'joint' ? colors.background : colors.text,
                       },
                     ]}
                   >
@@ -154,111 +200,90 @@ export default function SignupScreen() {
                 </TouchableOpacity>
               </View>
               
-              {accountType === 'joint' && (
+              {formData.accountType === 'joint' && (
                 <Text style={[styles.jointAccountNote, { color: colors.textSecondary }]}>
                   Joint accounts require KYC verification for all account holders
                 </Text>
               )}
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>Email Address</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    color: colors.text,
-                  },
-                ]}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
+            <View style={styles.nameRow}>
+              <Input
+                label="First Name"
+                value={formData.firstName}
+                onChangeText={(value) => updateFormData('firstName', value)}
+                placeholder="First name"
+                autoCapitalize="words"
+                error={errors.firstName}
+                containerStyle={styles.nameInput}
+              />
+              <Input
+                label="Last Name"
+                value={formData.lastName}
+                onChangeText={(value) => updateFormData('lastName', value)}
+                placeholder="Last name"
+                autoCapitalize="words"
+                error={errors.lastName}
+                containerStyle={styles.nameInput}
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={[
-                    styles.passwordInput,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Create a password"
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry={!showPassword}
-                  autoComplete="new-password"
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
+            <Input
+              label="Email Address"
+              value={formData.email}
+              onChangeText={(value) => updateFormData('email', value)}
+              placeholder="Enter your email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              error={errors.email}
+            />
+
+            <Input
+              label="Password"
+              value={formData.password}
+              onChangeText={(value) => updateFormData('password', value)}
+              placeholder="Create a password"
+              secureTextEntry={!showPassword}
+              autoComplete="new-password"
+              error={errors.password}
+              rightIcon={
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   {showPassword ? (
                     <EyeOff size={20} color={colors.textSecondary} />
                   ) : (
                     <Eye size={20} color={colors.textSecondary} />
                   )}
                 </TouchableOpacity>
-              </View>
-            </View>
+              }
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>Confirm Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={[
-                    styles.passwordInput,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm your password"
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry={!showConfirmPassword}
-                  autoComplete="new-password"
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
+            <Input
+              label="Confirm Password"
+              value={formData.confirmPassword}
+              onChangeText={(value) => updateFormData('confirmPassword', value)}
+              placeholder="Confirm your password"
+              secureTextEntry={!showConfirmPassword}
+              autoComplete="new-password"
+              error={errors.confirmPassword}
+              rightIcon={
+                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                   {showConfirmPassword ? (
                     <EyeOff size={20} color={colors.textSecondary} />
                   ) : (
                     <Eye size={20} color={colors.textSecondary} />
                   )}
                 </TouchableOpacity>
-              </View>
-            </View>
+              }
+            />
 
-            <TouchableOpacity
-              style={[
-                styles.signupButton,
-                { backgroundColor: colors.primary },
-                isLoading && styles.buttonDisabled,
-              ]}
+            <Button
+              title="Create Account"
               onPress={handleSignup}
               disabled={isLoading}
-            >
-              <Text style={[styles.signupButtonText, { color: colors.background }]}>
-                {isLoading ? 'Creating Account...' : 'Create Account'}
-              </Text>
-            </TouchableOpacity>
+              fullWidth
+              style={styles.signupButton}
+            />
 
             <View style={styles.loginContainer}>
               <Text style={[styles.loginText, { color: colors.textSecondary }]}>
@@ -341,6 +366,11 @@ const styles = StyleSheet.create({
   accountTypeContainer: {
     marginBottom: 24,
   },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
   accountTypeButtons: {
     gap: 12,
   },
@@ -368,56 +398,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
-  inputContainer: {
-    marginBottom: 20,
+  nameRow: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  input: {
-    height: 52,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-  },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    height: 52,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingRight: 48,
-    fontSize: 16,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
+  nameInput: {
+    flex: 1,
   },
   signupButton: {
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 24,
     marginTop: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  signupButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   loginContainer: {
     flexDirection: 'row',

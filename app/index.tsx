@@ -1,13 +1,27 @@
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated, isLoading]);
+
+  if (isLoading) {
+    return <LoadingSpinner text="Loading..." overlay />;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: '#fff' }]}>

@@ -2,42 +2,65 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { login, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
-      return;
+  const validateForm = () => {
+    const newErrors: { email?: string; password?: string } = {};
+
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = 'Please enter a valid email address';
     }
 
-    setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // For demo purposes, navigate to 2FA
-      router.push('/auth/two-factor');
-    }, 1500);
+    if (!password) {
+      newErrors.password = 'Password is required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
+
+  const handleLogin = async () => {
+    if (!validateForm()) return;
+
+    try {
+      await login({ email: email.trim(), password });
+      router.replace('/(tabs)');
+    } catch (error) {
+      Alert.alert(
+        'Login Failed',
+        error instanceof Error ? error.message : 'An unexpected error occurred'
+      );
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner text="Signing you in..." overlay />;
+  }
 
   return (
     <LinearGradient
@@ -73,58 +96,35 @@ export default function LoginScreen() {
               Sign in to your account
             </Text>
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>Email Address</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    color: colors.text,
-                  },
-                ]}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-            </View>
+            <Input
+              label="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Enter your email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              error={errors.email}
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={[
-                    styles.passwordInput,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Enter your password"
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry={!showPassword}
-                  autoComplete="password"
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
+            <Input
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              secureTextEntry={!showPassword}
+              autoComplete="password"
+              error={errors.password}
+              rightIcon={
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   {showPassword ? (
                     <EyeOff size={20} color={colors.textSecondary} />
                   ) : (
                     <Eye size={20} color={colors.textSecondary} />
                   )}
                 </TouchableOpacity>
-              </View>
-            </View>
+              }
+            />
 
             <TouchableOpacity
               style={styles.forgotPassword}
@@ -135,19 +135,13 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                { backgroundColor: colors.primary },
-                isLoading && styles.buttonDisabled,
-              ]}
+            <Button
+              title="Sign In"
               onPress={handleLogin}
               disabled={isLoading}
-            >
-              <Text style={[styles.loginButtonText, { color: colors.background }]}>
-                {isLoading ? 'Signing In...' : 'Sign In'}
-              </Text>
-            </TouchableOpacity>
+              fullWidth
+              style={styles.loginButton}
+            />
 
             <View style={styles.signupContainer}>
               <Text style={[styles.signupText, { color: colors.textSecondary }]}>
@@ -227,37 +221,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
   },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  input: {
-    height: 52,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-  },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    height: 52,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingRight: 48,
-    fontSize: 16,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
-  },
   forgotPassword: {
     alignSelf: 'flex-end',
     marginBottom: 32,
@@ -267,23 +230,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   loginButton: {
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 24,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   signupContainer: {
     flexDirection: 'row',

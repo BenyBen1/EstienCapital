@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,21 +8,45 @@ import {
   Modal,
   TextInput,
   Alert,
+  RefreshControl,
+  Image,
 } from 'react-native';
-import { Plus, Minus, ArrowUpRight, ArrowDownLeft, Filter, Search, X, DollarSign, Copy, CircleCheck as CheckCircle, Building, CreditCard, Smartphone } from 'lucide-react-native';
+import { 
+  Plus, 
+  Minus, 
+  ArrowUpRight, 
+  ArrowDownLeft, 
+  Filter, 
+  Search, 
+  X, 
+  DollarSign, 
+  Copy, 
+  CheckCircle, 
+  Building, 
+  CreditCard, 
+  Smartphone,
+  Calendar,
+  Clock,
+  TrendingUp,
+  Download,
+  MoreHorizontal,
+} from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
-type TransactionType = 'all' | 'deposit' | 'withdrawal';
+type TransactionType = 'all' | 'deposit' | 'withdrawal' | 'buy' | 'sell';
 type TransactionStatus = 'all' | 'pending' | 'completed' | 'failed';
 
 interface Transaction {
   id: string;
-  type: 'deposit' | 'withdrawal';
+  type: 'deposit' | 'withdrawal' | 'buy' | 'sell';
   amount: number;
   status: 'pending' | 'completed' | 'failed';
   date: string;
   description: string;
   reference?: string;
+  asset?: string;
+  fee?: number;
+  image?: string;
 }
 
 interface PaymentMethod {
@@ -31,6 +55,14 @@ interface PaymentMethod {
   name: string;
   details: string;
   isDefault: boolean;
+  icon: string;
+}
+
+interface TransactionSummary {
+  totalDeposits: number;
+  totalWithdrawals: number;
+  totalTrades: number;
+  monthlyVolume: number;
 }
 
 export default function TransactionsScreen() {
@@ -44,11 +76,18 @@ export default function TransactionsScreen() {
   const [filterType, setFilterType] = useState<TransactionType>('all');
   const [filterStatus, setFilterStatus] = useState<TransactionStatus>('all');
   const [copiedField, setCopiedField] = useState<string>('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Mock user's available balance
   const availableBalance = 125000;
 
-  // Mock payment methods from user profile
+  const transactionSummary: TransactionSummary = {
+    totalDeposits: 150000,
+    totalWithdrawals: 25000,
+    totalTrades: 45,
+    monthlyVolume: 75000,
+  };
+
   const paymentMethods: PaymentMethod[] = [
     {
       id: '1',
@@ -56,6 +95,7 @@ export default function TransactionsScreen() {
       name: 'KCB Bank',
       details: 'Account: ****5678 - John Doe',
       isDefault: true,
+      icon: 'https://images.pexels.com/photos/259027/pexels-photo-259027.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
     },
     {
       id: '2',
@@ -63,10 +103,10 @@ export default function TransactionsScreen() {
       name: 'M-Pesa',
       details: '+254 712 345 678',
       isDefault: false,
+      icon: 'https://images.pexels.com/photos/4386321/pexels-photo-4386321.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
     },
   ];
 
-  // Bank details for deposits
   const bankDetails = {
     bankName: 'KCB Bank Kenya',
     accountName: 'Estien Capital Limited',
@@ -85,68 +125,106 @@ export default function TransactionsScreen() {
       date: '2024-01-15',
       description: 'Bank Transfer Deposit',
       reference: 'DEP001',
+      fee: 0,
+      image: 'https://images.pexels.com/photos/259027/pexels-photo-259027.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
     },
     {
       id: '2',
-      type: 'withdrawal',
-      amount: 5000,
-      status: 'pending',
+      type: 'buy',
+      amount: 15000,
+      status: 'completed',
       date: '2024-01-14',
-      description: 'Withdrawal to Bank Account',
-      reference: 'WTH001',
+      description: 'Bitcoin Purchase',
+      reference: 'BUY001',
+      asset: 'BTC',
+      fee: 75,
+      image: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
     },
     {
       id: '3',
-      type: 'deposit',
-      amount: 15000,
+      type: 'sell',
+      amount: 8000,
       status: 'completed',
-      date: '2024-01-12',
-      description: 'M-Pesa Deposit',
-      reference: 'DEP002',
+      date: '2024-01-13',
+      description: 'Ethereum Sale',
+      reference: 'SELL001',
+      asset: 'ETH',
+      fee: 40,
+      image: 'https://images.pexels.com/photos/844124/pexels-photo-844124.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
     },
     {
       id: '4',
+      type: 'withdrawal',
+      amount: 5000,
+      status: 'pending',
+      date: '2024-01-12',
+      description: 'Withdrawal to Bank Account',
+      reference: 'WTH001',
+      fee: 25,
+    },
+    {
+      id: '5',
       type: 'deposit',
       amount: 50000,
       status: 'completed',
       date: '2024-01-10',
       description: 'Initial Investment',
-      reference: 'DEP003',
+      reference: 'DEP002',
+      fee: 0,
     },
     {
-      id: '5',
+      id: '6',
+      type: 'buy',
+      amount: 12000,
+      status: 'completed',
+      date: '2024-01-09',
+      description: 'Cardano Purchase',
+      reference: 'BUY002',
+      asset: 'ADA',
+      fee: 60,
+      image: 'https://images.pexels.com/photos/730564/pexels-photo-730564.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
+    },
+    {
+      id: '7',
       type: 'withdrawal',
       amount: 3000,
       status: 'failed',
       date: '2024-01-08',
       description: 'Withdrawal Request',
       reference: 'WTH002',
+      fee: 25,
     },
   ];
 
   const filteredTransactions = transactions.filter((transaction) => {
     const typeMatch = filterType === 'all' || transaction.type === filterType;
     const statusMatch = filterStatus === 'all' || transaction.status === filterStatus;
-    return typeMatch && statusMatch;
+    const searchMatch = searchQuery === '' || 
+      transaction.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      transaction.reference?.toLowerCase().includes(searchQuery.toLowerCase());
+    return typeMatch && statusMatch && searchMatch;
   });
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 2000);
+  };
 
   const handleDepositAmount = () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) {
       Alert.alert('Error', 'Please enter a valid deposit amount');
       return;
     }
-
     setShowDepositModal(false);
     setShowInstructionsModal(true);
   };
 
   const handleDepositConfirmation = () => {
-    // Send notification to Estien Capital
     sendDepositNotification();
-    
     setShowInstructionsModal(false);
     setDepositAmount('');
-    
     Alert.alert(
       'Deposit Notification Sent',
       'We have notified our team about your deposit. Your account will be credited within 24 hours after verification.',
@@ -171,9 +249,7 @@ export default function TransactionsScreen() {
       return;
     }
 
-    // Send notification to Estien Capital
     sendWithdrawalNotification();
-
     const selectedMethod = paymentMethods.find(method => method.id === selectedPaymentMethod);
     
     Alert.alert(
@@ -193,7 +269,6 @@ export default function TransactionsScreen() {
   };
 
   const sendDepositNotification = () => {
-    // In a real app, this would make an API call to send email/SMS
     console.log('Sending deposit notification:', {
       type: 'deposit',
       amount: depositAmount,
@@ -205,8 +280,6 @@ export default function TransactionsScreen() {
 
   const sendWithdrawalNotification = () => {
     const selectedMethod = paymentMethods.find(method => method.id === selectedPaymentMethod);
-    
-    // In a real app, this would make an API call to send email/SMS
     console.log('Sending withdrawal notification:', {
       type: 'withdrawal',
       amount: withdrawAmount,
@@ -218,11 +291,8 @@ export default function TransactionsScreen() {
   };
 
   const copyToClipboard = (text: string, field: string) => {
-    // In a real app, use Clipboard API
     setCopiedField(field);
     setTimeout(() => setCopiedField(''), 2000);
-    
-    // Mock clipboard functionality
     console.log(`Copied to clipboard: ${text}`);
   };
 
@@ -239,33 +309,100 @@ export default function TransactionsScreen() {
     }
   };
 
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case 'deposit':
+        return ArrowDownLeft;
+      case 'withdrawal':
+        return ArrowUpRight;
+      case 'buy':
+        return Plus;
+      case 'sell':
+        return Minus;
+      default:
+        return DollarSign;
+    }
+  };
+
+  const getTransactionColor = (type: string) => {
+    switch (type) {
+      case 'deposit':
+      case 'sell':
+        return colors.success;
+      case 'withdrawal':
+      case 'buy':
+        return colors.error;
+      default:
+        return colors.textSecondary;
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Transactions
-        </Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
-            <Search size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
-            <Filter size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            Transactions
+          </Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
+              <Download size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
+              <Filter size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
+              <MoreHorizontal size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
-      {/* Balance Card */}
-      <View style={styles.balanceSection}>
-        <View style={[styles.balanceCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
-            Available Balance
-          </Text>
-          <Text style={[styles.balanceAmount, { color: colors.text }]}>
-            KES {availableBalance.toLocaleString()}
-          </Text>
-        </View>
+      {/* Summary Cards */}
+      <View style={styles.summarySection}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.summaryCards}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Available Balance
+              </Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>
+                KES {availableBalance.toLocaleString()}
+              </Text>
+              <View style={styles.summaryChange}>
+                <TrendingUp size={12} color={colors.success} />
+                <Text style={[styles.summaryChangeText, { color: colors.success }]}>
+                  +2.5%
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Total Deposits
+              </Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>
+                KES {transactionSummary.totalDeposits.toLocaleString()}
+              </Text>
+              <Text style={[styles.summarySubtext, { color: colors.textSecondary }]}>
+                This month
+              </Text>
+            </View>
+
+            <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Monthly Volume
+              </Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>
+                KES {transactionSummary.monthlyVolume.toLocaleString()}
+              </Text>
+              <Text style={[styles.summarySubtext, { color: colors.textSecondary }]}>
+                {transactionSummary.totalTrades} trades
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
       </View>
 
       {/* Action Buttons */}
@@ -281,16 +418,6 @@ export default function TransactionsScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.primary }]}
-          onPress={() => setShowDepositModal(true)}
-        >
-          <Plus size={20} color={colors.background} />
-          <Text style={[styles.actionButtonText, { color: colors.background }]}>
-            Top Up
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: colors.error }]}
           onPress={() => setShowWithdrawModal(true)}
         >
@@ -299,13 +426,37 @@ export default function TransactionsScreen() {
             Withdraw
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: colors.primary }]}
+          onPress={() => setShowDepositModal(true)}
+        >
+          <TrendingUp size={20} color={colors.background} />
+          <Text style={[styles.actionButtonText, { color: colors.background }]}>
+            Invest
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Search and Filter */}
+      <View style={styles.searchSection}>
+        <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
+          <Search size={20} color={colors.textSecondary} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search transactions..."
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
       </View>
 
       {/* Filter Tabs */}
       <View style={styles.filterSection}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.filterTabs}>
-            {(['all', 'deposit', 'withdrawal'] as TransactionType[]).map((type) => (
+            {(['all', 'deposit', 'withdrawal', 'buy', 'sell'] as TransactionType[]).map((type) => (
               <TouchableOpacity
                 key={type}
                 style={[
@@ -324,7 +475,7 @@ export default function TransactionsScreen() {
                     },
                   ]}
                 >
-                  {type === 'all' ? 'All' : type === 'deposit' ? 'Deposits' : 'Withdrawals'}
+                  {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -333,72 +484,101 @@ export default function TransactionsScreen() {
       </View>
 
       {/* Transactions List */}
-      <ScrollView style={styles.transactionsList}>
+      <ScrollView 
+        style={styles.transactionsList}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
         {filteredTransactions.length === 0 ? (
           <View style={styles.emptyState}>
             <DollarSign size={48} color={colors.textSecondary} />
             <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
               No transactions found
             </Text>
+            <Text style={[styles.emptyStateSubtext, { color: colors.textSecondary }]}>
+              Try adjusting your search or filters
+            </Text>
           </View>
         ) : (
-          filteredTransactions.map((transaction) => (
-            <TouchableOpacity
-              key={transaction.id}
-              style={[styles.transactionCard, { backgroundColor: colors.card }]}
-            >
-              <View style={styles.transactionLeft}>
-                <View
-                  style={[
-                    styles.transactionIcon,
-                    {
-                      backgroundColor:
-                        transaction.type === 'deposit'
-                          ? colors.success + '20'
-                          : colors.error + '20',
-                    },
-                  ]}
-                >
-                  {transaction.type === 'deposit' ? (
-                    <ArrowDownLeft size={20} color={colors.success} />
-                  ) : (
-                    <ArrowUpRight size={20} color={colors.error} />
-                  )}
+          filteredTransactions.map((transaction) => {
+            const IconComponent = getTransactionIcon(transaction.type);
+            const iconColor = getTransactionColor(transaction.type);
+            
+            return (
+              <TouchableOpacity
+                key={transaction.id}
+                style={[styles.transactionCard, { backgroundColor: colors.card }]}
+              >
+                <View style={styles.transactionLeft}>
+                  <View style={styles.transactionIconContainer}>
+                    {transaction.image ? (
+                      <Image source={{ uri: transaction.image }} style={styles.transactionImage} />
+                    ) : (
+                      <View
+                        style={[
+                          styles.transactionIcon,
+                          { backgroundColor: iconColor + '20' },
+                        ]}
+                      >
+                        <IconComponent size={20} color={iconColor} />
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.transactionInfo}>
+                    <Text style={[styles.transactionTitle, { color: colors.text }]}>
+                      {transaction.description}
+                    </Text>
+                    <View style={styles.transactionMeta}>
+                      <Text style={[styles.transactionDate, { color: colors.textSecondary }]}>
+                        {transaction.date}
+                      </Text>
+                      {transaction.reference && (
+                        <>
+                          <Text style={[styles.transactionSeparator, { color: colors.textSecondary }]}>
+                            •
+                          </Text>
+                          <Text style={[styles.transactionReference, { color: colors.textSecondary }]}>
+                            {transaction.reference}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                    {transaction.fee && transaction.fee > 0 && (
+                      <Text style={[styles.transactionFee, { color: colors.textSecondary }]}>
+                        Fee: KES {transaction.fee}
+                      </Text>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.transactionInfo}>
-                  <Text style={[styles.transactionTitle, { color: colors.text }]}>
-                    {transaction.description}
-                  </Text>
-                  <Text style={[styles.transactionDate, { color: colors.textSecondary }]}>
-                    {transaction.date} • {transaction.reference}
-                  </Text>
-                </View>
-              </View>
 
-              <View style={styles.transactionRight}>
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    {
-                      color: transaction.type === 'deposit' ? colors.success : colors.error,
-                    },
-                  ]}
-                >
-                  {transaction.type === 'deposit' ? '+' : '-'}KES{' '}
-                  {transaction.amount.toLocaleString()}
-                </Text>
-                <Text
-                  style={[
-                    styles.transactionStatus,
-                    { color: getStatusColor(transaction.status) },
-                  ]}
-                >
-                  {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))
+                <View style={styles.transactionRight}>
+                  <Text
+                    style={[
+                      styles.transactionAmount,
+                      { color: iconColor },
+                    ]}
+                  >
+                    {(transaction.type === 'deposit' || transaction.type === 'sell') ? '+' : '-'}
+                    KES {transaction.amount.toLocaleString()}
+                  </Text>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(transaction.status) + '20' }]}>
+                    <Text
+                      style={[
+                        styles.transactionStatus,
+                        { color: getStatusColor(transaction.status) },
+                      ]}
+                    >
+                      {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })
         )}
+        <View style={styles.bottomSpacing} />
       </ScrollView>
 
       {/* Deposit Modal */}
@@ -478,105 +658,27 @@ export default function TransactionsScreen() {
               </Text>
 
               <View style={[styles.bankDetailsCard, { backgroundColor: colors.surface }]}>
-                <View style={styles.bankDetailRow}>
-                  <Text style={[styles.bankDetailLabel, { color: colors.textSecondary }]}>
-                    Bank Name:
-                  </Text>
-                  <View style={styles.bankDetailValue}>
-                    <Text style={[styles.bankDetailText, { color: colors.text }]}>
-                      {bankDetails.bankName}
+                {Object.entries(bankDetails).map(([key, value]) => (
+                  <View key={key} style={styles.bankDetailRow}>
+                    <Text style={[styles.bankDetailLabel, { color: colors.textSecondary }]}>
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
                     </Text>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(bankDetails.bankName, 'bankName')}
-                    >
-                      {copiedField === 'bankName' ? (
-                        <CheckCircle size={16} color={colors.success} />
-                      ) : (
-                        <Copy size={16} color={colors.textSecondary} />
-                      )}
-                    </TouchableOpacity>
+                    <View style={styles.bankDetailValue}>
+                      <Text style={[styles.bankDetailText, { color: colors.text }]}>
+                        {value}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => copyToClipboard(value, key)}
+                      >
+                        {copiedField === key ? (
+                          <CheckCircle size={16} color={colors.success} />
+                        ) : (
+                          <Copy size={16} color={colors.textSecondary} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-
-                <View style={styles.bankDetailRow}>
-                  <Text style={[styles.bankDetailLabel, { color: colors.textSecondary }]}>
-                    Account Name:
-                  </Text>
-                  <View style={styles.bankDetailValue}>
-                    <Text style={[styles.bankDetailText, { color: colors.text }]}>
-                      {bankDetails.accountName}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(bankDetails.accountName, 'accountName')}
-                    >
-                      {copiedField === 'accountName' ? (
-                        <CheckCircle size={16} color={colors.success} />
-                      ) : (
-                        <Copy size={16} color={colors.textSecondary} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.bankDetailRow}>
-                  <Text style={[styles.bankDetailLabel, { color: colors.textSecondary }]}>
-                    Account Number:
-                  </Text>
-                  <View style={styles.bankDetailValue}>
-                    <Text style={[styles.bankDetailText, { color: colors.text }]}>
-                      {bankDetails.accountNumber}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(bankDetails.accountNumber, 'accountNumber')}
-                    >
-                      {copiedField === 'accountNumber' ? (
-                        <CheckCircle size={16} color={colors.success} />
-                      ) : (
-                        <Copy size={16} color={colors.textSecondary} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.bankDetailRow}>
-                  <Text style={[styles.bankDetailLabel, { color: colors.textSecondary }]}>
-                    Branch Code:
-                  </Text>
-                  <View style={styles.bankDetailValue}>
-                    <Text style={[styles.bankDetailText, { color: colors.text }]}>
-                      {bankDetails.branchCode}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(bankDetails.branchCode, 'branchCode')}
-                    >
-                      {copiedField === 'branchCode' ? (
-                        <CheckCircle size={16} color={colors.success} />
-                      ) : (
-                        <Copy size={16} color={colors.textSecondary} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.bankDetailRow}>
-                  <Text style={[styles.bankDetailLabel, { color: colors.textSecondary }]}>
-                    Reference:
-                  </Text>
-                  <View style={styles.bankDetailValue}>
-                    <Text style={[styles.bankDetailText, { color: colors.text }]}>
-                      {bankDetails.reference}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(bankDetails.reference, 'reference')}
-                    >
-                      {copiedField === 'reference' ? (
-                        <CheckCircle size={16} color={colors.success} />
-                      ) : (
-                        <Copy size={16} color={colors.textSecondary} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                ))}
               </View>
 
               <View style={[styles.warningCard, { backgroundColor: colors.warning + '10' }]}>
@@ -659,13 +761,7 @@ export default function TransactionsScreen() {
                   onPress={() => setSelectedPaymentMethod(method.id)}
                 >
                   <View style={styles.paymentMethodLeft}>
-                    <View style={[styles.paymentMethodIcon, { backgroundColor: colors.primary + '20' }]}>
-                      {method.type === 'bank' ? (
-                        <Building size={20} color={colors.primary} />
-                      ) : (
-                        <Smartphone size={20} color={colors.primary} />
-                      )}
-                    </View>
+                    <Image source={{ uri: method.icon }} style={styles.paymentMethodIcon} />
                     <View style={styles.paymentMethodInfo}>
                       <Text style={[styles.paymentMethodName, { color: colors.text }]}>
                         {method.name}
@@ -720,12 +816,14 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 24,
     paddingBottom: 24,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
   },
   headerActions: {
@@ -739,27 +837,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  balanceSection: {
-    paddingHorizontal: 24,
+  summarySection: {
+    paddingLeft: 24,
     marginBottom: 24,
   },
-  balanceCard: {
-    padding: 20,
+  summaryCards: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingRight: 24,
+  },
+  summaryCard: {
+    width: 160,
+    padding: 16,
     borderRadius: 16,
-    alignItems: 'center',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  balanceLabel: {
-    fontSize: 14,
+  summaryLabel: {
+    fontSize: 12,
     marginBottom: 8,
   },
-  balanceAmount: {
-    fontSize: 28,
+  summaryValue: {
+    fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  summaryChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  summaryChangeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  summarySubtext: {
+    fontSize: 12,
   },
   actionSection: {
     flexDirection: 'row',
@@ -779,6 +895,22 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  searchSection: {
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
   },
   filterSection: {
     paddingLeft: 24,
@@ -809,26 +941,35 @@ const styles = StyleSheet.create({
     paddingTop: 100,
   },
   emptyStateText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
     marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   transactionCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 12,
-    elevation: 1,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 1,
+    shadowRadius: 2,
   },
   transactionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  transactionIconContainer: {
+    marginRight: 12,
   },
   transactionIcon: {
     width: 44,
@@ -836,7 +977,11 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+  },
+  transactionImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   transactionInfo: {
     flex: 1,
@@ -846,8 +991,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
+  transactionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   transactionDate: {
     fontSize: 12,
+  },
+  transactionSeparator: {
+    fontSize: 12,
+    marginHorizontal: 6,
+  },
+  transactionReference: {
+    fontSize: 12,
+  },
+  transactionFee: {
+    fontSize: 10,
   },
   transactionRight: {
     alignItems: 'flex-end',
@@ -857,9 +1017,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 4,
   },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
   transactionStatus: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   modalOverlay: {
     flex: 1,
@@ -1021,8 +1187,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginRight: 12,
   },
   paymentMethodInfo: {
@@ -1053,5 +1217,8 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  bottomSpacing: {
+    height: 40,
   },
 });

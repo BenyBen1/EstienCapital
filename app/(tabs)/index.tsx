@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  RefreshControl,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { 
@@ -18,24 +20,102 @@ import {
   ArrowDownLeft,
   Target,
   Settings,
+  Bell,
+  Search,
+  MoreHorizontal,
+  DollarSign,
+  PieChart,
+  Activity,
+  Zap,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
+interface MarketData {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  image: string;
+}
+
+interface NewsItem {
+  id: string;
+  title: string;
+  summary: string;
+  image: string;
+  timestamp: string;
+  category: string;
+}
+
 export default function HomeScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [hideBalance, setHideBalance] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
 
   const portfolioValue = 125000.75;
   const totalGain = 12500.50;
   const gainPercentage = 11.11;
+  const availableCash = 5000.00;
+
+  const timeframes = ['1D', '1W', '1M', '3M', '1Y'];
+
+  const marketData: MarketData[] = [
+    {
+      symbol: 'BTC',
+      name: 'Bitcoin',
+      price: 45250.30,
+      change: 1250.50,
+      changePercent: 2.84,
+      image: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
+    },
+    {
+      symbol: 'ETH',
+      name: 'Ethereum',
+      price: 2850.75,
+      change: -45.20,
+      changePercent: -1.56,
+      image: 'https://images.pexels.com/photos/844124/pexels-photo-844124.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
+    },
+    {
+      symbol: 'ADA',
+      name: 'Cardano',
+      price: 0.85,
+      change: 0.05,
+      changePercent: 6.25,
+      image: 'https://images.pexels.com/photos/730564/pexels-photo-730564.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
+    },
+  ];
+
+  const newsItems: NewsItem[] = [
+    {
+      id: '1',
+      title: 'Bitcoin Reaches New Monthly High',
+      summary: 'Institutional adoption drives BTC to new heights as major corporations announce treasury allocations.',
+      image: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop',
+      timestamp: '2 hours ago',
+      category: 'Market',
+    },
+    {
+      id: '2',
+      title: 'DeFi Protocol Launches New Yield Farming',
+      summary: 'Revolutionary staking mechanism promises higher returns with reduced risk exposure.',
+      image: 'https://images.pexels.com/photos/844124/pexels-photo-844124.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop',
+      timestamp: '4 hours ago',
+      category: 'DeFi',
+    },
+  ];
 
   const quickActions = [
-    { id: 'deposit', title: 'Deposit', icon: Plus, color: colors.success },
-    { id: 'withdraw', title: 'Withdraw', icon: Minus, color: colors.error },
-    { id: 'goals', title: 'Goals', icon: Target, color: colors.primary },
-    { id: 'settings', title: 'Settings', icon: Settings, color: colors.textSecondary },
+    { id: 'deposit', title: 'Deposit', icon: Plus, color: colors.success, description: 'Add funds' },
+    { id: 'withdraw', title: 'Withdraw', icon: Minus, color: colors.error, description: 'Take profits' },
+    { id: 'invest', title: 'Invest', icon: TrendingUp, color: colors.primary, description: 'Buy assets' },
+    { id: 'goals', title: 'Goals', icon: Target, color: colors.warning, description: 'Set targets' },
   ];
 
   const recentTransactions = [
@@ -45,46 +125,76 @@ export default function HomeScreen() {
       amount: 5000,
       status: 'completed',
       date: '2024-01-15',
-      description: 'Deposit to Digitika Fund',
+      description: 'Bank Transfer',
+      asset: 'USD',
     },
     {
       id: '2',
-      type: 'withdrawal',
+      type: 'buy',
       amount: 2000,
-      status: 'pending',
+      status: 'completed',
       date: '2024-01-14',
-      description: 'Withdrawal request',
+      description: 'Bitcoin Purchase',
+      asset: 'BTC',
     },
     {
       id: '3',
-      type: 'deposit',
-      amount: 10000,
+      type: 'sell',
+      amount: 1500,
       status: 'completed',
-      date: '2024-01-10',
-      description: 'Initial investment',
+      date: '2024-01-13',
+      description: 'Ethereum Sale',
+      asset: 'ETH',
     },
   ];
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    // Simulate API call
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 2000);
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: colors.background }]}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      showsVerticalScrollIndicator={false}
+    >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <View style={styles.headerContent}>
-          <View>
+          <View style={styles.headerLeft}>
             <Text style={[styles.greeting, { color: colors.textSecondary }]}>
-              Good morning
+              {getGreeting()}
             </Text>
             <Text style={[styles.username, { color: colors.text }]}>
-              John Doe
+              {user?.firstName || 'John'}
             </Text>
           </View>
-          <TouchableOpacity
-            style={[styles.logoContainer, { backgroundColor: colors.primary }]}
-          >
-            <Text style={[styles.logoText, { color: colors.background }]}>
-              E
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
+              <Search size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
+              <Bell size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.profileButton, { backgroundColor: colors.primary }]}>
+              <Text style={[styles.profileText, { color: colors.background }]}>
+                {user?.firstName?.charAt(0) || 'J'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -93,29 +203,70 @@ export default function HomeScreen() {
         <LinearGradient
           colors={[colors.primary, '#FFA500']}
           style={styles.portfolioCard}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
         >
           <View style={styles.portfolioHeader}>
-            <Text style={[styles.portfolioTitle, { color: colors.background }]}>
-              Total Portfolio Value
-            </Text>
+            <View>
+              <Text style={[styles.portfolioTitle, { color: colors.background }]}>
+                Total Portfolio Value
+              </Text>
+              <Text style={[styles.portfolioValue, { color: colors.background }]}>
+                {hideBalance ? '••••••••' : `KES ${portfolioValue.toLocaleString()}`}
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => setHideBalance(!hideBalance)}>
               {hideBalance ? (
-                <EyeOff size={20} color={colors.background} />
+                <EyeOff size={24} color={colors.background} />
               ) : (
-                <Eye size={20} color={colors.background} />
+                <Eye size={24} color={colors.background} />
               )}
             </TouchableOpacity>
           </View>
           
-          <Text style={[styles.portfolioValue, { color: colors.background }]}>
-            {hideBalance ? '••••••••' : `KES ${portfolioValue.toLocaleString()}`}
-          </Text>
-          
-          <View style={styles.gainContainer}>
-            <TrendingUp size={16} color={colors.background} />
-            <Text style={[styles.gainText, { color: colors.background }]}>
-              +KES {totalGain.toLocaleString()} (+{gainPercentage}%)
-            </Text>
+          <View style={styles.portfolioStats}>
+            <View style={styles.portfolioStat}>
+              <TrendingUp size={16} color={colors.background} />
+              <Text style={[styles.gainText, { color: colors.background }]}>
+                +KES {totalGain.toLocaleString()} (+{gainPercentage}%)
+              </Text>
+            </View>
+            <View style={styles.portfolioStat}>
+              <DollarSign size={16} color={colors.background} />
+              <Text style={[styles.cashText, { color: colors.background }]}>
+                Cash: KES {availableCash.toLocaleString()}
+              </Text>
+            </View>
+          </View>
+
+          {/* Timeframe Selector */}
+          <View style={styles.timeframeContainer}>
+            {timeframes.map((timeframe) => (
+              <TouchableOpacity
+                key={timeframe}
+                style={[
+                  styles.timeframeButton,
+                  {
+                    backgroundColor: selectedTimeframe === timeframe 
+                      ? colors.background + '30' 
+                      : 'transparent',
+                  },
+                ]}
+                onPress={() => setSelectedTimeframe(timeframe)}
+              >
+                <Text
+                  style={[
+                    styles.timeframeText,
+                    {
+                      color: colors.background,
+                      fontWeight: selectedTimeframe === timeframe ? 'bold' : 'normal',
+                    },
+                  ]}
+                >
+                  {timeframe}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </LinearGradient>
       </View>
@@ -130,6 +281,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               key={action.id}
               style={[styles.quickActionCard, { backgroundColor: colors.card }]}
+              activeOpacity={0.7}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
                 <action.icon size={24} color={action.color} />
@@ -137,16 +289,19 @@ export default function HomeScreen() {
               <Text style={[styles.quickActionText, { color: colors.text }]}>
                 {action.title}
               </Text>
+              <Text style={[styles.quickActionDescription, { color: colors.textSecondary }]}>
+                {action.description}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Investment Products */}
-      <View style={styles.productsSection}>
+      {/* Market Overview */}
+      <View style={styles.marketSection}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Your Investments
+            Market Overview
           </Text>
           <TouchableOpacity>
             <Text style={[styles.seeAllText, { color: colors.primary }]}>
@@ -155,42 +310,50 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
         
-        <TouchableOpacity style={[styles.productCard, { backgroundColor: colors.card }]}>
-          <View style={styles.productHeader}>
-            <View>
-              <Text style={[styles.productName, { color: colors.text }]}>
-                Digitika Fund
-              </Text>
-              <Text style={[styles.productDescription, { color: colors.textSecondary }]}>
-                Cryptocurrency Portfolio
-              </Text>
-            </View>
-            <ArrowUpRight size={20} color={colors.primary} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.marketCards}>
+            {marketData.map((item) => (
+              <TouchableOpacity
+                key={item.symbol}
+                style={[styles.marketCard, { backgroundColor: colors.card }]}
+              >
+                <View style={styles.marketCardHeader}>
+                  <Image source={{ uri: item.image }} style={styles.marketIcon} />
+                  <View style={styles.marketInfo}>
+                    <Text style={[styles.marketSymbol, { color: colors.text }]}>
+                      {item.symbol}
+                    </Text>
+                    <Text style={[styles.marketName, { color: colors.textSecondary }]}>
+                      {item.name}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.marketPrice, { color: colors.text }]}>
+                  ${item.price.toLocaleString()}
+                </Text>
+                <View style={styles.marketChange}>
+                  {item.change > 0 ? (
+                    <ArrowUpRight size={16} color={colors.success} />
+                  ) : (
+                    <ArrowDownLeft size={16} color={colors.error} />
+                  )}
+                  <Text
+                    style={[
+                      styles.marketChangeText,
+                      { color: item.change > 0 ? colors.success : colors.error },
+                    ]}
+                  >
+                    {item.changePercent > 0 ? '+' : ''}{item.changePercent}%
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
-          
-          <View style={styles.productStats}>
-            <View style={styles.productStat}>
-              <Text style={[styles.productStatLabel, { color: colors.textSecondary }]}>
-                Investment
-              </Text>
-              <Text style={[styles.productStatValue, { color: colors.text }]}>
-                KES 112,500
-              </Text>
-            </View>
-            <View style={styles.productStat}>
-              <Text style={[styles.productStatLabel, { color: colors.textSecondary }]}>
-                Current Value
-              </Text>
-              <Text style={[styles.productStatValue, { color: colors.success }]}>
-                KES 125,000
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+        </ScrollView>
       </View>
 
-      {/* Recent Transactions */}
-      <View style={styles.transactionsSection}>
+      {/* Recent Activity */}
+      <View style={styles.activitySection}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Recent Activity
@@ -203,72 +366,152 @@ export default function HomeScreen() {
         </View>
         
         {recentTransactions.slice(0, 3).map((transaction) => (
-          <View
+          <TouchableOpacity
             key={transaction.id}
-            style={[styles.transactionCard, { backgroundColor: colors.card }]}
+            style={[styles.activityCard, { backgroundColor: colors.card }]}
           >
-            <View style={styles.transactionLeft}>
+            <View style={styles.activityLeft}>
               <View
                 style={[
-                  styles.transactionIcon,
+                  styles.activityIcon,
                   {
-                    backgroundColor:
-                      transaction.type === 'deposit'
-                        ? colors.success + '20'
-                        : colors.error + '20',
+                    backgroundColor: getActivityColor(transaction.type) + '20',
                   },
                 ]}
               >
-                {transaction.type === 'deposit' ? (
-                  <ArrowDownLeft
-                    size={16}
-                    color={transaction.type === 'deposit' ? colors.success : colors.error}
-                  />
-                ) : (
-                  <ArrowUpRight
-                    size={16}
-                    color={transaction.type === 'deposit' ? colors.success : colors.error}
-                  />
-                )}
+                {getActivityIcon(transaction.type, getActivityColor(transaction.type))}
               </View>
-              <View>
-                <Text style={[styles.transactionTitle, { color: colors.text }]}>
+              <View style={styles.activityInfo}>
+                <Text style={[styles.activityTitle, { color: colors.text }]}>
                   {transaction.description}
                 </Text>
-                <Text style={[styles.transactionDate, { color: colors.textSecondary }]}>
-                  {transaction.date}
+                <Text style={[styles.activityDate, { color: colors.textSecondary }]}>
+                  {transaction.date} • {transaction.asset}
                 </Text>
               </View>
             </View>
             
-            <View style={styles.transactionRight}>
+            <View style={styles.activityRight}>
               <Text
                 style={[
-                  styles.transactionAmount,
+                  styles.activityAmount,
                   {
-                    color: transaction.type === 'deposit' ? colors.success : colors.error,
+                    color: getActivityAmountColor(transaction.type),
                   },
                 ]}
               >
-                {transaction.type === 'deposit' ? '+' : '-'}KES {transaction.amount.toLocaleString()}
+                {getActivityPrefix(transaction.type)}KES {transaction.amount.toLocaleString()}
               </Text>
-              <Text
-                style={[
-                  styles.transactionStatus,
-                  {
-                    color:
-                      transaction.status === 'completed' ? colors.success : colors.warning,
-                  },
-                ]}
-              >
-                {transaction.status}
-              </Text>
+              <View style={[styles.statusBadge, { backgroundColor: colors.success + '20' }]}>
+                <Text style={[styles.statusText, { color: colors.success }]}>
+                  {transaction.status}
+                </Text>
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
+
+      {/* News & Insights */}
+      <View style={styles.newsSection}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Market News
+          </Text>
+          <TouchableOpacity>
+            <Text style={[styles.seeAllText, { color: colors.primary }]}>
+              View All
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        {newsItems.map((news) => (
+          <TouchableOpacity
+            key={news.id}
+            style={[styles.newsCard, { backgroundColor: colors.card }]}
+          >
+            <Image source={{ uri: news.image }} style={styles.newsImage} />
+            <View style={styles.newsContent}>
+              <View style={styles.newsHeader}>
+                <View style={[styles.categoryBadge, { backgroundColor: colors.primary + '20' }]}>
+                  <Text style={[styles.categoryText, { color: colors.primary }]}>
+                    {news.category}
+                  </Text>
+                </View>
+                <Text style={[styles.newsTimestamp, { color: colors.textSecondary }]}>
+                  {news.timestamp}
+                </Text>
+              </View>
+              <Text style={[styles.newsTitle, { color: colors.text }]}>
+                {news.title}
+              </Text>
+              <Text style={[styles.newsSummary, { color: colors.textSecondary }]}>
+                {news.summary}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.bottomSpacing} />
     </ScrollView>
   );
+
+  function getActivityColor(type: string) {
+    switch (type) {
+      case 'deposit':
+        return colors.success;
+      case 'withdraw':
+        return colors.error;
+      case 'buy':
+        return colors.primary;
+      case 'sell':
+        return colors.warning;
+      default:
+        return colors.textSecondary;
+    }
+  }
+
+  function getActivityIcon(type: string, color: string) {
+    switch (type) {
+      case 'deposit':
+        return <ArrowDownLeft size={20} color={color} />;
+      case 'withdraw':
+        return <ArrowUpRight size={20} color={color} />;
+      case 'buy':
+        return <Plus size={20} color={color} />;
+      case 'sell':
+        return <Minus size={20} color={color} />;
+      default:
+        return <Activity size={20} color={color} />;
+    }
+  }
+
+  function getActivityAmountColor(type: string) {
+    switch (type) {
+      case 'deposit':
+      case 'sell':
+        return colors.success;
+      case 'withdraw':
+      case 'buy':
+        return colors.error;
+      default:
+        return colors.text;
+    }
+  }
+
+  function getActivityPrefix(type: string) {
+    switch (type) {
+      case 'deposit':
+      case 'sell':
+        return '+';
+      case 'withdraw':
+      case 'buy':
+        return '-';
+      default:
+        return '';
+    }
+  }
 }
 
 const styles = StyleSheet.create({
@@ -285,23 +528,38 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   greeting: {
     fontSize: 14,
     marginBottom: 4,
   },
   username: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
   },
-  logoContainer: {
+  headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logoText: {
-    fontSize: 18,
+  profileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileText: {
+    fontSize: 16,
     fontWeight: 'bold',
   },
   portfolioSection: {
@@ -310,77 +568,68 @@ const styles = StyleSheet.create({
   },
   portfolioCard: {
     padding: 24,
-    borderRadius: 16,
-    elevation: 4,
+    borderRadius: 20,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   portfolioHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
   portfolioTitle: {
     fontSize: 16,
     fontWeight: '500',
+    marginBottom: 8,
+    opacity: 0.9,
   },
   portfolioValue: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: 'bold',
-    marginBottom: 8,
   },
-  gainContainer: {
+  portfolioStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  portfolioStat: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   gainText: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  cashText: {
+    fontSize: 14,
     fontWeight: '500',
+    opacity: 0.9,
+  },
+  timeframeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  timeframeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  timeframeText: {
+    fontSize: 14,
   },
   quickActionsSection: {
     paddingHorizontal: 24,
     marginBottom: 32,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 16,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  quickActionCard: {
-    width: (width - 60) / 2,
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  quickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  quickActionText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  productsSection: {
-    paddingHorizontal: 24,
-    marginBottom: 32,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -390,94 +639,205 @@ const styles = StyleSheet.create({
   },
   seeAllText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  productCard: {
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickActionCard: {
+    width: (width - 60) / 2,
     padding: 20,
-    borderRadius: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  quickActionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  quickActionDescription: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  marketSection: {
+    paddingLeft: 24,
+    marginBottom: 32,
+  },
+  marketCards: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingRight: 24,
+  },
+  marketCard: {
+    width: 160,
+    padding: 16,
+    borderRadius: 16,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  productHeader: {
+  marketCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  productName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  marketIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
   },
-  productDescription: {
-    fontSize: 14,
-  },
-  productStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  productStat: {
+  marketInfo: {
     flex: 1,
   },
-  productStatLabel: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  productStatValue: {
-    fontSize: 16,
+  marketSymbol: {
+    fontSize: 14,
     fontWeight: 'bold',
   },
-  transactionsSection: {
-    paddingHorizontal: 24,
-    marginBottom: 40,
+  marketName: {
+    fontSize: 12,
   },
-  transactionCard: {
+  marketPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  marketChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  marketChangeText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  activitySection: {
+    paddingHorizontal: 24,
+    marginBottom: 32,
+  },
+  activityCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    elevation: 1,
+    borderRadius: 16,
+    marginBottom: 12,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 1,
+    shadowRadius: 2,
   },
-  transactionLeft: {
+  activityLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  transactionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  activityIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  transactionTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 2,
+  activityInfo: {
+    flex: 1,
   },
-  transactionDate: {
+  activityTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  activityDate: {
     fontSize: 12,
   },
-  transactionRight: {
+  activityRight: {
     alignItems: 'flex-end',
   },
-  transactionAmount: {
-    fontSize: 14,
+  activityAmount: {
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  transactionStatus: {
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  newsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 32,
+  },
+  newsCard: {
+    borderRadius: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    overflow: 'hidden',
+  },
+  newsImage: {
+    width: '100%',
+    height: 160,
+  },
+  newsContent: {
+    padding: 16,
+  },
+  newsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  newsTimestamp: {
     fontSize: 12,
-    textTransform: 'capitalize',
+  },
+  newsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  newsSummary: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  bottomSpacing: {
+    height: 40,
   },
 });

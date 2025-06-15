@@ -10,24 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { 
-  Plus, 
-  Minus, 
-  TrendingUp, 
-  Eye, 
-  EyeOff,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Target,
-  Settings,
-  Bell,
-  Search,
-  MoreHorizontal,
-  DollarSign,
-  PieChart,
-  Activity,
-  Zap,
-} from 'lucide-react-native';
+import { Plus, Minus, TrendingUp, Eye, EyeOff, ArrowUpRight, ArrowDownLeft, Target, Settings, Bell, Search, MoveHorizontal as MoreHorizontal, DollarSign, ChartPie as PieChart, Activity, Zap } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 

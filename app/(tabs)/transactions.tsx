@@ -11,26 +11,7 @@ import {
   RefreshControl,
   Image,
 } from 'react-native';
-import { 
-  Plus, 
-  Minus, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  Filter, 
-  Search, 
-  X, 
-  DollarSign, 
-  Copy, 
-  CheckCircle, 
-  Building, 
-  CreditCard, 
-  Smartphone,
-  Calendar,
-  Clock,
-  TrendingUp,
-  Download,
-  MoreHorizontal,
-} from 'lucide-react-native';
+import { Plus, Minus, ArrowUpRight, ArrowDownLeft, Filter, Search, X, DollarSign, Copy, CircleCheck as CheckCircle, Building, CreditCard, Smartphone, Calendar, Clock, TrendingUp, Download, MoveHorizontal as MoreHorizontal } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 type TransactionType = 'all' | 'deposit' | 'withdrawal' | 'buy' | 'sell';

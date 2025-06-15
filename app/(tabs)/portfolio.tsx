@@ -10,20 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Eye, 
-  EyeOff, 
-  Info, 
-  MoreHorizontal,
-  ArrowUpRight,
-  ArrowDownLeft,
-  PieChart as PieChartIcon,
-  BarChart3,
-  Filter,
-  Download,
-} from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Eye, EyeOff, Info, MoveHorizontal as MoreHorizontal, ArrowUpRight, ArrowDownLeft, ChartPie as PieChartIcon, ChartBar as BarChart3, Filter, Download } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');

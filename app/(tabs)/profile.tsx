@@ -10,30 +10,7 @@ import {
   Image,
   RefreshControl,
 } from 'react-native';
-import { 
-  User, 
-  Settings, 
-  CreditCard, 
-  Shield, 
-  FileText, 
-  HelpCircle, 
-  Moon, 
-  Sun, 
-  LogOut, 
-  ChevronRight, 
-  Phone, 
-  MessageCircle, 
-  Mail,
-  Edit,
-  Camera,
-  Bell,
-  Lock,
-  Globe,
-  Download,
-  Star,
-  Award,
-  TrendingUp,
-} from 'lucide-react-native';
+import { User, Settings, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, ChevronRight, Phone, MessageCircle, Mail, CreditCard as Edit, Camera, Bell, Lock, Globe, Download, Star, Award, TrendingUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';

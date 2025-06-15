@@ -11,22 +11,7 @@ import {
   RefreshControl,
   Image,
 } from 'react-native';
-import { 
-  Target, 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Calendar, 
-  DollarSign, 
-  TrendingUp, 
-  X, 
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  MoreHorizontal,
-  Filter,
-  PieChart,
-} from 'lucide-react-native';
+import { Target, Plus, CreditCard as Edit3, Trash2, Calendar, DollarSign, TrendingUp, X, CircleCheck as CheckCircle, Clock, CircleAlert as AlertCircle, MoveHorizontal as MoreHorizontal, Filter, ChartPie as PieChart } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface Goal {

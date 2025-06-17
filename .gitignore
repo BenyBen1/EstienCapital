@@ -33,3 +33,7 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+flow.md
+backend.md
+Estien Capital App Development Requirements (1)

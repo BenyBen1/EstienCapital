@@ -8,12 +8,17 @@ import {
   Dimensions,
   RefreshControl,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { TrendingUp, TrendingDown, Eye, EyeOff, Info, MoveHorizontal as MoreHorizontal, ArrowUpRight, ArrowDownLeft, ChartPie as PieChartIcon, ChartBar as BarChart3, Filter, Download } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
+const BASE_URL = 'http://192.168.0.175:5000';
 
 interface Holding {
   id: string;
@@ -38,18 +43,66 @@ interface PerformanceMetric {
 
 export default function PortfolioScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [hideBalance, setHideBalance] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('1M');
   const [chartType, setChartType] = useState<'line' | 'pie'>('line');
   const [refreshing, setRefreshing] = useState(false);
 
-  const portfolioData = {
-    totalValue: 125000.75,
-    totalInvested: 112500.00,
-    totalGain: 12500.75,
-    gainPercentage: 11.11,
-    dayChange: 850.25,
-    dayChangePercent: 0.68,
+  // Real data state
+  const [portfolioData, setPortfolioData] = useState<any>(null);
+  const [holdings, setHoldings] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
+
+  // Fetch portfolio data from backend
+  const fetchPortfolio = async () => {
+    if (!user?.id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) throw new Error('No auth token found. Please log in again.');
+      const response = await fetch(`${BASE_URL}/api/portfolio`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.status === 403) {
+        setError('kyc_required');
+        setIsLoading(false);
+        setRefreshing(false);
+        return;
+      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to fetch portfolio');
+      setHoldings(data || []);
+      setPortfolioData({
+        totalValue: data.reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0),
+        totalInvested: data.reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0),
+        totalGain: 0,
+        gainPercentage: 0,
+        dayChange: 0,
+        dayChangePercent: 0,
+      });
+    } catch (err: any) {
+      setError(err.message || 'Error fetching portfolio');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPortfolio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchPortfolio();
   };
 
   const periods = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
@@ -116,65 +169,10 @@ export default function PortfolioScreen() {
     },
   };
 
-  const holdings: Holding[] = [
-    {
-      id: '1',
-      name: 'Bitcoin',
-      symbol: 'BTC',
-      allocation: 45,
-      value: 56250.34,
-      change: 1250.50,
-      changePercent: 2.27,
-      isPositive: true,
-      quantity: 1.24,
-      avgPrice: 45320.50,
-      image: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '2',
-      name: 'Ethereum',
-      symbol: 'ETH',
-      allocation: 30,
-      value: 37500.23,
-      change: -450.75,
-      changePercent: -1.19,
-      isPositive: false,
-      quantity: 13.15,
-      avgPrice: 2851.25,
-      image: 'https://images.pexels.com/photos/844124/pexels-photo-844124.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '3',
-      name: 'Cardano',
-      symbol: 'ADA',
-      allocation: 15,
-      value: 18750.12,
-      change: 325.80,
-      changePercent: 1.77,
-      isPositive: true,
-      quantity: 22050,
-      avgPrice: 0.85,
-      image: 'https://images.pexels.com/photos/730564/pexels-photo-730564.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '4',
-      name: 'Polkadot',
-      symbol: 'DOT',
-      allocation: 10,
-      value: 12500.06,
-      change: 125.45,
-      changePercent: 1.01,
-      isPositive: true,
-      quantity: 1785.5,
-      avgPrice: 7.00,
-      image: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-  ];
-
   const performanceMetrics: PerformanceMetric[] = [
     {
       label: 'Total Return',
-      value: `+${portfolioData.gainPercentage}%`,
+      value: `+${portfolioData?.gainPercentage}%`,
       change: '+2.5%',
       isPositive: true,
     },
@@ -204,11 +202,50 @@ export default function PortfolioScreen() {
     },
   ];
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
+  if (error === 'kyc_required') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 32 }}>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
+          You need to complete KYC to access your portfolio.
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 16, marginBottom: 32, textAlign: 'center' }}>
+          For your security and compliance, please complete your KYC verification.
+        </Text>
+        <TouchableOpacity
+          style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8 }}
+          onPress={() => router.push('/kyc')}
+        >
+          <Text style={{ color: colors.background, fontWeight: 'bold', fontSize: 16 }}>Start KYC</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <Text style={{ color: colors.error }}>{error}</Text>
+      </View>
+    );
+  }
+
+  // Use real data for portfolio summary and holdings
+  // Fallback to empty if not loaded
+  const summary = portfolioData || {
+    totalValue: 0,
+    totalInvested: 0,
+    totalGain: 0,
+    gainPercentage: 0,
+    dayChange: 0,
+    dayChangePercent: 0,
   };
 
   return (
@@ -255,7 +292,7 @@ export default function PortfolioScreen() {
             </TouchableOpacity>
           </View>
           <Text style={[styles.summaryValue, { color: colors.text }]}>
-            {hideBalance ? '••••••••' : `KES ${portfolioData.totalValue.toLocaleString()}`}
+            {hideBalance ? '••••••••' : `KES ${summary.totalValue.toLocaleString()}`}
           </Text>
           
           <View style={styles.summaryStats}>
@@ -264,7 +301,7 @@ export default function PortfolioScreen() {
                 Total Invested
               </Text>
               <Text style={[styles.summaryStatValue, { color: colors.text }]}>
-                {hideBalance ? '••••••••' : `KES ${portfolioData.totalInvested.toLocaleString()}`}
+                {hideBalance ? '••••••••' : `KES ${summary.totalInvested.toLocaleString()}`}
               </Text>
             </View>
             
@@ -273,7 +310,7 @@ export default function PortfolioScreen() {
                 Total Gain/Loss
               </Text>
               <View style={styles.gainContainer}>
-                {portfolioData.gainPercentage > 0 ? (
+                {summary.gainPercentage > 0 ? (
                   <TrendingUp size={16} color={colors.success} />
                 ) : (
                   <TrendingDown size={16} color={colors.error} />
@@ -281,19 +318,19 @@ export default function PortfolioScreen() {
                 <Text
                   style={[
                     styles.summaryStatValue,
-                    { color: portfolioData.gainPercentage > 0 ? colors.success : colors.error },
+                    { color: summary.gainPercentage > 0 ? colors.success : colors.error },
                   ]}
                 >
-                  {hideBalance ? '••••••••' : `+KES ${portfolioData.totalGain.toLocaleString()}`}
+                  {hideBalance ? '••••••••' : `+KES ${summary.totalGain.toLocaleString()}`}
                 </Text>
               </View>
               <Text
                 style={[
                   styles.gainPercentage,
-                  { color: portfolioData.gainPercentage > 0 ? colors.success : colors.error },
+                  { color: summary.gainPercentage > 0 ? colors.success : colors.error },
                 ]}
               >
-                {hideBalance ? '••••' : `+${portfolioData.gainPercentage}%`}
+                {hideBalance ? '••••' : `+${summary.gainPercentage}%`}
               </Text>
             </View>
           </View>
@@ -307,7 +344,7 @@ export default function PortfolioScreen() {
               <View style={styles.dayChangeValue}>
                 <TrendingUp size={16} color={colors.success} />
                 <Text style={[styles.dayChangeAmount, { color: colors.success }]}>
-                  +KES {portfolioData.dayChange.toLocaleString()} (+{portfolioData.dayChangePercent}%)
+                  +KES {summary.dayChange.toLocaleString()} (+{summary.dayChangePercent}%)
                 </Text>
               </View>
             </View>
@@ -423,58 +460,51 @@ export default function PortfolioScreen() {
           </TouchableOpacity>
         </View>
 
-        {holdings.map((holding) => (
-          <TouchableOpacity
-            key={holding.id}
-            style={[styles.holdingCard, { backgroundColor: colors.card }]}
-          >
-            <View style={styles.holdingLeft}>
-              <Image source={{ uri: holding.image }} style={styles.holdingIcon} />
-              <View style={styles.holdingInfo}>
-                <View style={styles.holdingHeader}>
-                  <Text style={[styles.holdingName, { color: colors.text }]}>
-                    {holding.name}
-                  </Text>
-                  <Text style={[styles.holdingSymbol, { color: colors.textSecondary }]}>
-                    {holding.symbol}
-                  </Text>
-                </View>
-                <View style={styles.holdingDetails}>
-                  <Text style={[styles.holdingQuantity, { color: colors.textSecondary }]}>
-                    {holding.quantity.toLocaleString()} {holding.symbol}
-                  </Text>
-                  <Text style={[styles.holdingAllocation, { color: colors.textSecondary }]}>
-                    {holding.allocation}% of portfolio
-                  </Text>
+        {holdings.length === 0 ? (
+          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginVertical: 16 }}>
+            No holdings found.
+          </Text>
+        ) : (
+          holdings.map((holding: any) => (
+            <TouchableOpacity
+              key={holding.id}
+              style={[styles.holdingCard, { backgroundColor: colors.card }]}
+            >
+              <View style={styles.holdingLeft}>
+                <Image source={{ uri: holding.image || 'https://via.placeholder.com/48' }} style={styles.holdingIcon} />
+                <View style={styles.holdingInfo}>
+                  <View style={styles.holdingHeader}>
+                    <Text style={[styles.holdingName, { color: colors.text }]}>
+                      {holding.asset_type || 'Asset'}
+                    </Text>
+                    <Text style={[styles.holdingSymbol, { color: colors.textSecondary }]}>
+                      {holding.symbol || ''}
+                    </Text>
+                  </View>
+                  <View style={styles.holdingDetails}>
+                    <Text style={[styles.holdingQuantity, { color: colors.textSecondary }]}>
+                      {holding.units || holding.amount || 0} {holding.symbol || ''}
+                    </Text>
+                    <Text style={[styles.holdingAllocation, { color: colors.textSecondary }]}>
+                      N/A
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <View style={styles.holdingRight}>
-              <Text style={[styles.holdingValue, { color: colors.text }]}>
-                {hideBalance ? '••••••••' : `KES ${holding.value.toLocaleString()}`}
-              </Text>
-              <View style={styles.holdingChangeContainer}>
-                {holding.isPositive ? (
-                  <TrendingUp size={12} color={colors.success} />
-                ) : (
-                  <TrendingDown size={12} color={colors.error} />
-                )}
-                <Text
-                  style={[
-                    styles.holdingChange,
-                    { color: holding.isPositive ? colors.success : colors.error },
-                  ]}
-                >
-                  {hideBalance ? '••••' : `${holding.isPositive ? '+' : ''}${holding.changePercent}%`}
+              <View style={styles.holdingRight}>
+                <Text style={[styles.holdingValue, { color: colors.text }]}>
+                  {hideBalance ? '••••••••' : `KES ${holding.amount?.toLocaleString?.() || 0}`}
                 </Text>
+                <View style={styles.holdingChangeContainer}>
+                  <TrendingUp size={12} color={colors.success} />
+                  <Text style={[styles.holdingChange, { color: colors.success }]}>N/A</Text>
+                </View>
+                <Text style={[styles.holdingChangeAmount, { color: colors.textSecondary }]}>N/A</Text>
               </View>
-              <Text style={[styles.holdingChangeAmount, { color: colors.textSecondary }]}>
-                {hideBalance ? '••••' : `${holding.isPositive ? '+' : ''}KES ${Math.abs(holding.change).toLocaleString()}`}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          ))
+        )}
       </View>
 
       {/* Performance Metrics */}

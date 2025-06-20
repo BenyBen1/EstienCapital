@@ -30,6 +30,7 @@ interface AuthContextType {
   completeRegistration: () => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,6 +41,12 @@ const USER_KEY = 'user_data';
 
 
 const BASE_URL = 'http://192.168.0.175:5000';
+
+async function fetchUserProfile(userId: string) {
+  const response = await fetch(`${BASE_URL}/api/profile/${userId}`);
+  if (!response.ok) throw new Error('Failed to fetch user profile');
+  return await response.json();
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -61,7 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (token && userData) {
         const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
+        // Fetch latest profile info
+        try {
+          const profile = await fetchUserProfile(String(parsedUser.id));
+          setUser({ ...parsedUser, ...profile });
+        } catch {
+          setUser(parsedUser);
+        }
       }
     } catch (error) {
       console.error('Failed to initialize auth:', error);
@@ -104,8 +117,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Save token and user
       await AsyncStorage.setItem(TOKEN_KEY, data.session?.access_token || '');
-      await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      setUser(data.user);
+      // Fetch latest profile info
+      let profile = data.user;
+      try {
+        profile = await fetchUserProfile(String(data.user.id));
+      } catch {}
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(profile));
+      setUser(profile);
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -130,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Registration step 1 done, show message to user
       // (You may want to show a toast/alert in the UI)
+      // Optionally fetch profile after registration if needed
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
@@ -198,6 +217,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     throw new Error('No refresh token available');
   };
 
+  // Add a method to refresh the profile manually
+  const refreshProfile = async () => {
+    if (user?.id) {
+      setIsLoading(true);
+      try {
+        const profile = await fetchUserProfile(String(user.id));
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(profile));
+        setUser(profile);
+      } catch (error) {
+        console.error('Failed to refresh profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -209,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         completeRegistration,
         logout,
         refreshAuth,
+        refreshProfile,
       }}
     >
       {children}

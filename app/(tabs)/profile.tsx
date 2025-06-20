@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { User, Settings, CreditCard, Shield, FileText, CircleHelp as HelpCircle,
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ProfileStat {
   label: string;
@@ -29,22 +30,75 @@ export default function ProfileScreen() {
   const [kycStatus] = useState<'pending' | 'approved' | 'rejected'>('approved');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Real stats state
+  const [stats, setStats] = useState<any>({ balance: 0, invested: 0, goals: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
+  const BASE_URL = 'http://192.168.0.175:5000';
+
+  // Fetch stats from backend
+  const fetchStats = async () => {
+    if (!user?.id) return;
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) throw new Error('No auth token found. Please log in again.');
+      // Fetch wallet
+      const walletRes = await fetch(`${BASE_URL}/api/profile/${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const walletData = await walletRes.json();
+      // Fetch investments
+      const invRes = await fetch(`${BASE_URL}/api/portfolio`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const invData = await invRes.json();
+      // Fetch goals
+      const goalsRes = await fetch(`${BASE_URL}/api/goals`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const goalsData = await goalsRes.json();
+      setStats({
+        balance: walletData?.balance || 0,
+        invested: Array.isArray(invData) ? invData.reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0) : 0,
+        goals: Array.isArray(goalsData) ? goalsData.length : 0,
+      });
+    } catch (err: any) {
+      setStatsError(err.message || 'Error fetching stats');
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const profileStats: ProfileStat[] = [
     {
       label: 'Portfolio Value',
-      value: 'KES 125,000',
+      value: statsLoading ? 'Loading...' : `KES ${stats.balance.toLocaleString()}`,
       icon: TrendingUp,
       color: colors.primary,
     },
     {
       label: 'Total Invested',
-      value: 'KES 112,500',
+      value: statsLoading ? 'Loading...' : `KES ${stats.invested.toLocaleString()}`,
       icon: Award,
       color: colors.success,
     },
     {
       label: 'Active Goals',
-      value: '4',
+      value: statsLoading ? 'Loading...' : `${stats.goals}`,
       icon: Star,
       color: colors.warning,
     },

@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { TransactionHeader } from '@/components/TransactionHeader';
 import { TransactionSummary } from '@/components/TransactionSummary';
 import { TransactionFilter } from '@/components/TransactionFilter';
 import { TransactionList } from '@/components/TransactionList';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 
 type TransactionType = 'all' | 'deposit' | 'withdrawal' | 'buy' | 'sell';
 type TransactionStatus = 'all' | 'pending' | 'completed' | 'failed';
@@ -29,116 +32,136 @@ interface TransactionSummary {
   monthlyVolume: number;
 }
 
+const BASE_URL = 'http://192.168.0.175:5000';
+
 export default function TransactionsScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [filterType, setFilterType] = useState<TransactionType>('all');
   const [filterStatus, setFilterStatus] = useState<TransactionStatus>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  const availableBalance = 125000;
-
-  const transactionSummary: TransactionSummary = {
-    totalDeposits: 150000,
-    totalWithdrawals: 25000,
-    totalTrades: 45,
-    monthlyVolume: 75000,
+  // Fetch transactions from backend
+  const fetchTransactions = async () => {
+    if (!user?.id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) throw new Error('No auth token found. Please log in again.');
+      const response = await fetch(`${BASE_URL}/api/transactions/history/${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.status === 403) {
+        setError('kyc_required');
+        setIsLoading(false);
+        setRefreshing(false);
+        return;
+      }
+      const data = await response.json();
+      console.log('Fetched transactions:', data);
+      if (!response.ok) throw new Error(data.error || 'Failed to fetch transactions');
+      setTransactions(data.transactions || []);
+    } catch (err: any) {
+      setError(err.message || 'Error fetching transactions');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  const transactions: Transaction[] = [
-    {
-      id: '1',
-      type: 'deposit',
-      amount: 25000,
-      status: 'completed',
-      date: '2024-01-15',
-      description: 'Bank Transfer Deposit',
-      reference: 'DEP001',
-      fee: 0,
-      image: 'https://images.pexels.com/photos/259027/pexels-photo-259027.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '2',
-      type: 'buy',
-      amount: 15000,
-      status: 'completed',
-      date: '2024-01-14',
-      description: 'Bitcoin Purchase',
-      reference: 'BUY001',
-      asset: 'BTC',
-      fee: 75,
-      image: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '3',
-      type: 'sell',
-      amount: 8000,
-      status: 'completed',
-      date: '2024-01-13',
-      description: 'Ethereum Sale',
-      reference: 'SELL001',
-      asset: 'ETH',
-      fee: 40,
-      image: 'https://images.pexels.com/photos/844124/pexels-photo-844124.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '4',
-      type: 'withdrawal',
-      amount: 5000,
-      status: 'pending',
-      date: '2024-01-12',
-      description: 'Withdrawal to Bank Account',
-      reference: 'WTH001',
-      fee: 25,
-    },
-    {
-      id: '5',
-      type: 'deposit',
-      amount: 50000,
-      status: 'completed',
-      date: '2024-01-10',
-      description: 'Initial Investment',
-      reference: 'DEP002',
-      fee: 0,
-    },
-    {
-      id: '6',
-      type: 'buy',
-      amount: 12000,
-      status: 'completed',
-      date: '2024-01-09',
-      description: 'Cardano Purchase',
-      reference: 'BUY002',
-      asset: 'ADA',
-      fee: 60,
-      image: 'https://images.pexels.com/photos/730564/pexels-photo-730564.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '7',
-      type: 'withdrawal',
-      amount: 3000,
-      status: 'failed',
-      date: '2024-01-08',
-      description: 'Withdrawal Request',
-      reference: 'WTH002',
-      fee: 25,
-    },
-  ];
+  useEffect(() => {
+    fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchTransactions();
+  };
+
+  // Filter transactions
   const filteredTransactions = transactions.filter((transaction) => {
     const typeMatch = filterType === 'all' || transaction.type === filterType;
     const statusMatch = filterStatus === 'all' || transaction.status === filterStatus;
     const searchMatch = searchQuery === '' || 
-      transaction.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      transaction.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       transaction.reference?.toLowerCase().includes(searchQuery.toLowerCase());
     return typeMatch && statusMatch && searchMatch;
   });
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (error === 'kyc_required') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 32 }}>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
+          You need to complete KYC to view your transactions.
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 16, marginBottom: 32, textAlign: 'center' }}>
+          For your security and compliance, please complete your KYC verification.
+        </Text>
+        <TouchableOpacity
+          style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8 }}
+          onPress={() => router.push('/kyc')}
+        >
+          <Text style={{ color: colors.background, fontWeight: 'bold', fontSize: 16 }}>Start KYC</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <TransactionHeader
+          onDownload={() => {}}
+          onFilter={() => {}}
+          onMore={() => {}}
+        />
+        <TransactionSummary
+          availableBalance={0}
+          totalDeposits={0}
+          monthlyVolume={0}
+          totalTrades={0}
+        />
+        <TransactionFilter
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          filterType={filterType}
+          onFilterTypeChange={setFilterType}
+          filterStatus={filterStatus}
+          onFilterStatusChange={setFilterStatus}
+        />
+        <View style={{ alignItems: 'center', marginTop: 40 }}>
+          <ActivityIndicator size="small" color={colors.error} />
+          <View style={{ height: 16 }} />
+          <Text style={{ color: colors.error }}>{error}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // TODO: Fetch and calculate real summary values
+  const availableBalance = 0;
+  const transactionSummary: TransactionSummary = {
+    totalDeposits: 0,
+    totalWithdrawals: 0,
+    totalTrades: transactions.length,
+    monthlyVolume: 0,
   };
 
   return (
@@ -155,14 +178,6 @@ export default function TransactionsScreen() {
         onMore={() => {
           // TODO: Implement more options
           console.log('Show more options');
-        }}
-        onDeposit={() => {
-          // TODO: Implement deposit functionality
-          console.log('Show deposit modal');
-        }}
-        onWithdraw={() => {
-          // TODO: Implement withdraw functionality
-          console.log('Show withdraw modal');
         }}
       />
 
@@ -183,7 +198,15 @@ export default function TransactionsScreen() {
       />
 
       <TransactionList
-        transactions={filteredTransactions}
+        transactions={filteredTransactions.map((transaction) => ({
+          ...transaction,
+          description: transaction.description || 'No description',
+          reference: transaction.reference || '',
+          type: transaction.type || 'unknown',
+          status: transaction.status || 'pending',
+          amount: transaction.amount || 0,
+          date: transaction.date || '',
+        }))}
         refreshing={refreshing}
         onRefresh={onRefresh}
       />

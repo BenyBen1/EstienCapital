@@ -36,22 +36,8 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User creation failed' });
     }
 
-    // Create profile in profiles table immediately after registration
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: authData.user.id,
-        email: authData.user.email,
-        first_name: firstName,
-        last_name: lastName,
-        role: 'user',
-        kyc_status: 'pending',
-      });
-    if (profileError) {
-      console.error('Profile creation failed:', profileError);
-      // Optionally: delete the auth user if profile creation fails
-      return res.status(500).json({ error: 'Profile creation failed', details: profileError });
-    }
+    // No need to insert into profiles table here; handled by DB trigger
+    // Continue with wallet, notification preferences, security settings, etc.
 
     // Create wallet for user
     const { error: walletError } = await supabase

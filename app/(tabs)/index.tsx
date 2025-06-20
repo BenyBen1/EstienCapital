@@ -8,11 +8,19 @@ import {
   Dimensions,
   RefreshControl,
   Image,
+  Modal,
+  KeyboardAvoidingView,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, Minus, TrendingUp, Eye, EyeOff, ArrowUpRight, ArrowDownLeft, Target, Settings, Bell, Search, MoveHorizontal as MoreHorizontal, DollarSign, ChartPie as PieChart, Activity, Zap } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import DepositModal from '@/components/DepositModal';
+import WithdrawModal from '@/components/WithdrawModal';
+import DepositInstructionsModal from '@/components/DepositInstructionsModal';
+import { BASE_URL } from '@/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -37,9 +45,44 @@ interface NewsItem {
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+  const [kycStatus, setKycStatus] = useState<string>('');
+  const [balance, setBalance] = useState<number | null>(null);
   const [hideBalance, setHideBalance] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [showDepositInstructionsModal, setShowDepositInstructionsModal] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
+  const [copiedField, setCopiedField] = useState('');
+
+  // Bank details for deposit instructions
+  const [bankDetails] = useState({
+    bankName: 'Equity Bank',
+    accountName: 'Estien Capital Limited',
+    accountNumber: '1234567890',
+    swiftCode: 'EQBLKEXX',
+    branchCode: '123',
+  });
+
+  // Payment methods for withdrawals
+  const [paymentMethods] = useState([
+    {
+      id: '1',
+      name: 'Equity Bank',
+      accountNumber: '1234567890',
+      accountName: 'John Doe',
+    },
+    {
+      id: '2',
+      name: 'M-PESA',
+      accountNumber: '254712345678',
+      accountName: 'John Doe',
+    },
+  ]);
 
   const portfolioValue = 125000.75;
   const totalGain = 12500.50;
@@ -95,10 +138,10 @@ export default function HomeScreen() {
   ];
 
   const quickActions = [
-    { id: 'deposit', title: 'Deposit', icon: Plus, color: colors.success, description: 'Add funds' },
-    { id: 'withdraw', title: 'Withdraw', icon: Minus, color: colors.error, description: 'Take profits' },
-    { id: 'invest', title: 'Invest', icon: TrendingUp, color: colors.primary, description: 'Buy assets' },
-    { id: 'goals', title: 'Goals', icon: Target, color: colors.warning, description: 'Set targets' },
+    { id: 'deposit', title: 'Deposit', icon: Plus, color: colors.success, description: 'Add funds', onPress: () => setShowDepositModal(true) },
+    { id: 'withdraw', title: 'Withdraw', icon: Minus, color: colors.error, description: 'Take profits', onPress: () => setShowWithdrawModal(true) },
+    { id: 'invest', title: 'Invest', icon: TrendingUp, color: colors.primary, description: 'Buy assets', onPress: () => {/* TODO: handle invest */} },
+    { id: 'goals', title: 'Goals', icon: Target, color: colors.warning, description: 'Set targets', onPress: () => {/* TODO: handle goals */} },
   ];
 
   const recentTransactions = [
@@ -139,12 +182,49 @@ export default function HomeScreen() {
     }, 2000);
   };
 
+  // Modal handlers
+  const handleDepositInstructions = () => {
+    setShowDepositModal(false);
+    setShowDepositInstructionsModal(true);
+  };
+
+  const handleDepositConfirmation = () => {
+    setShowDepositInstructionsModal(false);
+    setDepositAmount('');
+  };
+
+  const handleWithdraw = () => {
+    setShowWithdrawModal(false);
+    setWithdrawAmount('');
+    setSelectedPaymentMethod('');
+  };
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
   };
+
+  useEffect(() => {
+    if (user?.id) {
+      // Fetch profile
+      fetch(`${BASE_URL}/api/profile/${user.id}`)
+        .then(res => res.json())
+        .then(data => setProfile(data))
+        .catch(() => setProfile(null));
+      // Fetch KYC status
+      fetch(`${BASE_URL}/api/kyc/status/${user.id}`)
+        .then(res => res.json())
+        .then(data => setKycStatus(data?.status || ''))
+        .catch(() => setKycStatus(''));
+      // Fetch wallet balance (if you add a wallet endpoint)
+      fetch(`${BASE_URL}/api/wallet/${user.id}`)
+        .then(res => res.json())
+        .then(data => setBalance(data?.balance ?? null))
+        .catch(() => setBalance(null));
+    }
+  }, [user?.id]);
 
   return (
     <ScrollView 
@@ -162,7 +242,7 @@ export default function HomeScreen() {
               {getGreeting()}
             </Text>
             <Text style={[styles.username, { color: colors.text }]}>
-              {user?.firstName || 'John'}
+              {profile?.first_name || user?.firstName || 'John'}
             </Text>
           </View>
           <View style={styles.headerRight}>
@@ -195,7 +275,7 @@ export default function HomeScreen() {
                 Total Portfolio Value
               </Text>
               <Text style={[styles.portfolioValue, { color: colors.background }]}>
-                {hideBalance ? '••••••••' : `KES ${portfolioValue.toLocaleString()}`}
+                {hideBalance ? '••••••••' : `KES ${(balance ?? 0).toLocaleString()}`}
               </Text>
             </View>
             <TouchableOpacity onPress={() => setHideBalance(!hideBalance)}>
@@ -265,6 +345,7 @@ export default function HomeScreen() {
               key={action.id}
               style={[styles.quickActionCard, { backgroundColor: colors.card }]}
               activeOpacity={0.7}
+              onPress={action.onPress}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
                 <action.icon size={24} color={action.color} />
@@ -435,6 +516,46 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Deposit Modal */}
+      <DepositModal
+        visible={showDepositModal}
+        onClose={() => setShowDepositModal(false)}
+        amount={depositAmount}
+        setAmount={setDepositAmount}
+        onGetInstructions={handleDepositInstructions}
+        colors={colors}
+      />
+
+      {/* Withdraw Modal */}
+      <WithdrawModal
+        visible={showWithdrawModal}
+        onClose={() => setShowWithdrawModal(false)}
+        amount={withdrawAmount}
+        setAmount={setWithdrawAmount}
+        availableBalance={availableCash}
+        paymentMethods={paymentMethods}
+        selectedPaymentMethod={selectedPaymentMethod}
+        setSelectedPaymentMethod={setSelectedPaymentMethod}
+        onWithdraw={handleWithdraw}
+        colors={colors}
+      />
+
+      {/* Deposit Instructions Modal */}
+      <DepositInstructionsModal
+        visible={showDepositInstructionsModal}
+        onClose={() => setShowDepositInstructionsModal(false)}
+        amount={depositAmount}
+        bankDetails={bankDetails}
+        copiedField={copiedField}
+        onCopy={(val, field) => {
+          // TODO: Implement copy functionality
+          setCopiedField(field);
+          console.log('Copied:', val);
+        }}
+        onConfirm={handleDepositConfirmation}
+        colors={colors}
+      />
 
       <View style={styles.bottomSpacing} />
     </ScrollView>

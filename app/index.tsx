@@ -29,7 +29,7 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         <View style={styles.logoContainer}>
           <Image
-            source={require('../assets/images/Estien Logo 2 Black transparent.png')}
+            source={require('../assets/images/EstienLogo2Blacktransparent.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />

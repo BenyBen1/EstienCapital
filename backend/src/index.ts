@@ -1,48 +1,76 @@
 import express from 'express';
 import cors from 'cors';
+import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import authRoutes from './routes/auth';
+import kycRoutes from './routes/kyc';
+import transactionRoutes from './routes/transactions';
+import portfolioRoutes from './routes/portfolio';
+import goalsRoutes from './routes/goals';
+import profileRoutes from './routes/profile';
+import { logRequest, logError } from './middleware/logger';
+import { apiLimiter, authLimiter, uploadLimiter } from './middleware/rateLimit';
+import { requireAuth, requireKYC, requireAdmin } from './middleware/auth';
 import fs from 'fs';
 import https from 'https';
 
 dotenv.config();
 
 const app = express();
+const port = process.env.PORT || 3000;
+
+// Initialize Supabase client
+export const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_ANON_KEY || ''
+);
+
+// Middleware
 app.use(cors());
 app.use(express.json());
+app.use(logRequest);
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date() });
+// Rate limiting
+app.use('/api/', apiLimiter);
+app.use('/api/auth/', authLimiter);
+app.use('/api/upload/', uploadLimiter);
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/kyc', requireAuth, kycRoutes);
+app.use('/api/transactions', requireAuth, requireKYC, transactionRoutes);
+app.use('/api/portfolio', requireAuth, requireKYC, portfolioRoutes);
+app.use('/api/goals', requireAuth, requireKYC, goalsRoutes);
+app.use('/api/profile', requireAuth, profileRoutes);
+
+// Admin routes
+app.use('/api/admin', requireAuth, requireAdmin, (req, res) => {
+  res.json({ message: 'Admin access granted' });
 });
 
-// TODO: Add routes for auth, kyc, deposits, withdrawals, profile, etc.
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
-const HTTP_PORT = process.env.PORT || 5000;
-const HTTPS_PORT = process.env.HTTPS_PORT || 5443;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+// Error handling middleware
+app.use(logError);
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something broke!' });
+});
 
-// Optional: Enable HTTPS if certs are provided
-const SSL_KEY = process.env.SSL_KEY || '';
-const SSL_CERT = process.env.SSL_CERT || '';
-
-if (SSL_KEY && SSL_CERT && fs.existsSync(SSL_KEY) && fs.existsSync(SSL_CERT)) {
-  const sslOptions = {
-    key: fs.readFileSync(SSL_KEY),
-    cert: fs.readFileSync(SSL_CERT),
+// Start server
+if (process.env.NODE_ENV === 'production') {
+  const httpsOptions = {
+    key: fs.readFileSync(process.env.SSL_KEY || ''),
+    cert: fs.readFileSync(process.env.SSL_CERT || '')
   };
-  https.createServer(sslOptions, app).listen(HTTPS_PORT, () => {
-    console.log(`✅ HTTPS server running on port ${HTTPS_PORT}`);
-    console.log(`    SSL_KEY: ${SSL_KEY}`);
-    console.log(`    SSL_CERT: ${SSL_CERT}`);
-    console.log(`    NODE_ENV: ${NODE_ENV}`);
+  https.createServer(httpsOptions, app).listen(process.env.HTTPS_PORT || 443, () => {
+    console.log(`HTTPS Server running on port ${process.env.HTTPS_PORT || 443}`);
   });
 } else {
-  app.listen(HTTP_PORT, () => {
-    console.log(`✅ HTTP server running on port ${HTTP_PORT}`);
-    if (SSL_KEY || SSL_CERT) {
-      console.log('⚠️  SSL_KEY or SSL_CERT provided but files not found. HTTPS not enabled.');
-    } else {
-      console.log('ℹ️  To enable HTTPS, set SSL_KEY and SSL_CERT in your .env file.');
-    }
-    console.log(`    NODE_ENV: ${NODE_ENV}`);
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
   });
 }

@@ -1,6 +1,25 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiClient, User, AuthResponse, LoginRequest, RegisterRequest } from '@/services/api';
+
+interface User {
+  id: number;
+  email: string;
+  firstName: string;
+  // Add more fields as needed
+}
+
+interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+interface RegisterRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  accountType: string;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -8,6 +27,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
   register: (userData: RegisterRequest) => Promise<void>;
+  completeRegistration: () => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
 }
@@ -17,6 +37,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'user_data';
+
+
+const BASE_URL = 'http://192.168.0.175:5000';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -38,17 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (token && userData) {
         const parsedUser = JSON.parse(userData);
-        apiClient.setToken(token);
         setUser(parsedUser);
-        
-        // Optionally refresh user data from server
-        try {
-          const freshUserData = await apiClient.getProfile();
-          setUser(freshUserData);
-          await AsyncStorage.setItem(USER_KEY, JSON.stringify(freshUserData));
-        } catch (error) {
-          console.log('Failed to refresh user data:', error);
-        }
       }
     } catch (error) {
       console.error('Failed to initialize auth:', error);
@@ -58,16 +71,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const saveAuthData = async (authResponse: AuthResponse) => {
-    const { user, token, refreshToken } = authResponse;
-    
+  const saveAuthData = async (user: User) => {
     await Promise.all([
-      AsyncStorage.setItem(TOKEN_KEY, token),
-      AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken),
+      AsyncStorage.setItem(TOKEN_KEY, 'mock_token'),
       AsyncStorage.setItem(USER_KEY, JSON.stringify(user)),
     ]);
-
-    apiClient.setToken(token);
     setUser(user);
   };
 
@@ -77,16 +85,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       AsyncStorage.removeItem(REFRESH_TOKEN_KEY),
       AsyncStorage.removeItem(USER_KEY),
     ]);
-
-    apiClient.clearToken();
     setUser(null);
   };
 
+  // Real login: call backend
   const login = async (credentials: LoginRequest) => {
     try {
       setIsLoading(true);
-      const authResponse = await apiClient.login(credentials);
-      await saveAuthData(authResponse);
+      console.log('LOGIN: POST', `${BASE_URL}/api/auth/login`, credentials);
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+      // Save token and user
+      await AsyncStorage.setItem(TOKEN_KEY, data.session?.access_token || '');
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      setUser(data.user);
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -95,13 +114,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Real register: call backend
   const register = async (userData: RegisterRequest) => {
     try {
       setIsLoading(true);
-      const authResponse = await apiClient.register(userData);
-      await saveAuthData(authResponse);
+      console.log('REGISTER: POST', `${BASE_URL}/api/auth/register`, userData);
+      const response = await fetch(`${BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
+      // Registration step 1 done, show message to user
+      // (You may want to show a toast/alert in the UI)
     } catch (error) {
       console.error('Registration failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Complete registration after email confirmation and login
+  const completeRegistration = async () => {
+    try {
+      setIsLoading(true);
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      console.log('COMPLETE REGISTRATION: POST', `${BASE_URL}/api/auth/complete-registration`);
+      const response = await fetch(`${BASE_URL}/api/auth/complete-registration`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Profile setup failed');
+      }
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      setUser(data.user);
+    } catch (error) {
+      console.error('Complete registration failed:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -111,29 +168,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       setIsLoading(true);
-      await apiClient.logout();
+      // Optionally call backend logout endpoint if you have one
+      try {
+        const token = await AsyncStorage.getItem(TOKEN_KEY);
+        if (token) {
+          await fetch(`${BASE_URL}/api/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+        }
+      } catch (err) {
+        // Ignore backend logout errors
+        console.warn('Backend logout failed:', err);
+      }
+      await clearAuthData();
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
-      await clearAuthData();
       setIsLoading(false);
     }
   };
 
+  // Mock refreshAuth: just clears auth
   const refreshAuth = async () => {
-    try {
-      const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
-
-      const authResponse = await apiClient.refreshToken(refreshToken);
-      await saveAuthData(authResponse);
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      await clearAuthData();
-      throw error;
-    }
+    await clearAuthData();
+    throw new Error('No refresh token available');
   };
 
   return (
@@ -144,6 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         login,
         register,
+        completeRegistration,
         logout,
         refreshAuth,
       }}

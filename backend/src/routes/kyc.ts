@@ -17,9 +17,9 @@ router.post('/submit', async (req, res) => {
       dateOfBirth,
       idType,
       idNumber,
-      idDocument,
+      idDocument, // { base64: string, fileName: string }
       kraPin,
-      passportPhoto,
+      passportPhoto, // { base64: string, fileName: string }
       occupation,
       sourceOfWealth,
       physicalAddress,
@@ -34,17 +34,44 @@ router.post('/submit', async (req, res) => {
       nextOfKinEmail,
     } = req.body;
 
-    // Upload documents to Supabase Storage
-    const idDocumentPath = `kyc/${userId}/id_document.${idDocument.split('.').pop()}`;
-    const passportPhotoPath = `kyc/${userId}/passport_photo.${passportPhoto.split('.').pop()}`;
+    // Validate file objects
+    if (!idDocument || !idDocument.base64 || !idDocument.fileName) {
+      return res.status(400).json({ error: 'Missing or invalid idDocument' });
+    }
+    if (!passportPhoto || !passportPhoto.base64 || !passportPhoto.fileName) {
+      return res.status(400).json({ error: 'Missing or invalid passportPhoto' });
+    }
 
+    // Helper to decode base64 data URL
+    function decodeBase64File(dataUrl: string) {
+      // data:[mime];base64,[data]
+      const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
+      if (!matches) throw new Error('Invalid base64 file format');
+      return {
+        contentType: matches[1],
+        buffer: Buffer.from(matches[2], 'base64'),
+      };
+    }
+
+    // Decode and upload ID Document
+    const idDocDecoded = decodeBase64File(idDocument.base64);
+    const idDocumentPath = `kyc/${userId}/id_document_${Date.now()}_${idDocument.fileName}`;
     const { error: idDocError } = await supabase.storage
       .from('documents')
-      .upload(idDocumentPath, idDocument);
+      .upload(idDocumentPath, idDocDecoded.buffer, {
+        contentType: idDocDecoded.contentType,
+        upsert: true,
+      });
 
+    // Decode and upload Passport Photo
+    const passportPhotoDecoded = decodeBase64File(passportPhoto.base64);
+    const passportPhotoPath = `kyc/${userId}/passport_photo_${Date.now()}_${passportPhoto.fileName}`;
     const { error: photoError } = await supabase.storage
       .from('documents')
-      .upload(passportPhotoPath, passportPhoto);
+      .upload(passportPhotoPath, passportPhotoDecoded.buffer, {
+        contentType: passportPhotoDecoded.contentType,
+        upsert: true,
+      });
 
     if (idDocError || photoError) {
       throw new Error('Failed to upload documents');

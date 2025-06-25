@@ -8,57 +8,36 @@ import {
   TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ArrowRight, Briefcase, DollarSign } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Briefcase, DollarSign, Check, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useKYC } from '@/contexts/KYCContext';
 
 export default function ProfessionalScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  
-  const [formData, setFormData] = useState({
-    occupation: '',
-    customOccupation: '',
-    sourceOfWealth: '',
-    customSourceOfWealth: '',
-  });
+  const { kycData, setKycData } = useKYC();
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [customOccupation, setCustomOccupation] = useState('');
+  const [customSourceOfWealth, setCustomSourceOfWealth] = useState('');
 
-  const occupationOptions = [
-    'Employed - Private Sector',
-    'Employed - Public Sector',
-    'Self-Employed',
-    'Business Owner',
-    'Student',
-    'Retired',
-    'Unemployed',
-    'Other',
-  ];
-
-  const sourceOfWealthOptions = [
-    'Employment Income',
-    'Business Profits',
-    'Investment Returns',
-    'Inheritance',
-    'Savings',
-    'Pension',
-    'Family Support',
-    'Other',
-  ];
+  const occupationOptions = ['Employed', 'Self-Employed', 'Business Owner', 'Student', 'Unemployed', 'Other'];
+  const sourceOfWealthOptions = ['Employment Income', 'Business Income', 'Investments', 'Inheritance', 'Savings', 'Other'];
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    const { professional } = kycData;
 
-    if (!formData.occupation) {
+    if (!professional.occupation) {
       newErrors.occupation = 'Please select your occupation';
-    } else if (formData.occupation === 'Other' && !formData.customOccupation.trim()) {
-      newErrors.customOccupation = 'Please specify your occupation';
+    } else if (professional.occupation === 'Other' && !customOccupation.trim()) {
+      newErrors.occupation = 'Please specify your occupation';
     }
 
-    if (!formData.sourceOfWealth) {
+    if (!professional.sourceOfWealth) {
       newErrors.sourceOfWealth = 'Please select your source of wealth';
-    } else if (formData.sourceOfWealth === 'Other' && !formData.customSourceOfWealth.trim()) {
-      newErrors.customSourceOfWealth = 'Please specify your source of wealth';
+    } else if (professional.sourceOfWealth === 'Other' && !customSourceOfWealth.trim()) {
+      newErrors.sourceOfWealth = 'Please specify your source of wealth';
     }
 
     setErrors(newErrors);
@@ -67,15 +46,38 @@ export default function ProfessionalScreen() {
 
   const handleNext = () => {
     if (validateForm()) {
+      // If 'Other' was selected, save the custom value
+      if (kycData.professional.occupation === 'Other') {
+        updateFormData('occupation', customOccupation);
+      }
+      if (kycData.professional.sourceOfWealth === 'Other') {
+        updateFormData('sourceOfWealth', customSourceOfWealth);
+      }
       router.push('/kyc/address');
     }
   };
 
-  const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const updateFormData = (field: 'occupation' | 'sourceOfWealth', value: string) => {
+    setKycData(prev => ({
+      ...prev,
+      professional: {
+        ...prev.professional,
+        [field]: value,
+      },
+    }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+  };
+
+  const handleSelectOccupation = (option: string) => {
+    if (option !== 'Other') setCustomOccupation('');
+    updateFormData('occupation', option);
+  };
+
+  const handleSelectSource = (option: string) => {
+    if (option !== 'Other') setCustomSourceOfWealth('');
+    updateFormData('sourceOfWealth', option);
   };
 
   return (
@@ -118,73 +120,46 @@ export default function ProfessionalScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Occupation *
             </Text>
+            <Text style={[styles.labelDescription, { color: colors.textSecondary }]}>
+              Please indicate your current occupation
+            </Text>
             <View style={styles.optionsContainer}>
-              {occupationOptions.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.optionCard,
-                    {
-                      backgroundColor: formData.occupation === option ? colors.primary + '20' : colors.card,
-                      borderColor: formData.occupation === option ? colors.primary : colors.border,
-                    },
-                  ]}
-                  onPress={() => updateFormData('occupation', option)}
-                >
-                  <View style={styles.optionContent}>
-                    <View
-                      style={[
-                        styles.radioButton,
-                        {
-                          borderColor: formData.occupation === option ? colors.primary : colors.border,
-                          backgroundColor: formData.occupation === option ? colors.primary : 'transparent',
-                        },
-                      ]}
-                    >
-                      {formData.occupation === option && (
-                        <View style={[styles.radioButtonInner, { backgroundColor: colors.background }]} />
-                      )}
+              {occupationOptions.map(option => (
+                <View key={option}>
+                  <TouchableOpacity
+                    style={[styles.optionCard, { borderColor: kycData.professional.occupation === option ? colors.primary : colors.border }]}
+                    onPress={() => handleSelectOccupation(option)}
+                  >
+                    <View style={styles.optionContent}>
+                      <View style={[styles.radioButton, { borderColor: colors.border }]}>
+                        {kycData.professional.occupation === option && (
+                          <View style={[styles.radioButtonInner, { backgroundColor: colors.primary }]} />
+                        )}
+                      </View>
+                      <Text style={[styles.optionText, { color: colors.text }]}>{option}</Text>
                     </View>
-                    <Text
-                      style={[
-                        styles.optionText,
-                        {
-                          color: formData.occupation === option ? colors.primary : colors.text,
-                          fontWeight: formData.occupation === option ? '600' : '400',
-                        },
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                  {option === 'Other' && kycData.professional.occupation === 'Other' && (
+                    <View style={styles.customInputContainer}>
+                      <View style={[styles.inputContainer, { borderColor: errors.occupation ? colors.error : colors.border }]}>
+                        <Briefcase size={20} color={colors.textSecondary} />
+                        <TextInput
+                          style={[styles.textInput, { color: colors.text }]}
+                          value={customOccupation}
+                          onChangeText={setCustomOccupation}
+                          placeholder="Please specify"
+                          placeholderTextColor={colors.textSecondary}
+                        />
+                      </View>
+                    </View>
+                  )}
+                </View>
               ))}
             </View>
             {errors.occupation && (
               <Text style={[styles.errorText, { color: colors.error }]}>
                 {errors.occupation}
               </Text>
-            )}
-
-            {/* Custom Occupation Input */}
-            {formData.occupation === 'Other' && (
-              <View style={styles.customInputContainer}>
-                <View style={[styles.inputContainer, { borderColor: errors.customOccupation ? colors.error : colors.border }]}>
-                  <Briefcase size={20} color={colors.textSecondary} />
-                  <TextInput
-                    style={[styles.textInput, { color: colors.text }]}
-                    value={formData.customOccupation}
-                    onChangeText={(value) => updateFormData('customOccupation', value)}
-                    placeholder="Please specify your occupation"
-                    placeholderTextColor={colors.textSecondary}
-                  />
-                </View>
-                {errors.customOccupation && (
-                  <Text style={[styles.errorText, { color: colors.error }]}>
-                    {errors.customOccupation}
-                  </Text>
-                )}
-              </View>
             )}
           </View>
 
@@ -197,72 +172,42 @@ export default function ProfessionalScreen() {
               Please indicate the primary source of the funds you plan to invest
             </Text>
             <View style={styles.optionsContainer}>
-              {sourceOfWealthOptions.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.optionCard,
-                    {
-                      backgroundColor: formData.sourceOfWealth === option ? colors.primary + '20' : colors.card,
-                      borderColor: formData.sourceOfWealth === option ? colors.primary : colors.border,
-                    },
-                  ]}
-                  onPress={() => updateFormData('sourceOfWealth', option)}
-                >
-                  <View style={styles.optionContent}>
-                    <View
-                      style={[
-                        styles.radioButton,
-                        {
-                          borderColor: formData.sourceOfWealth === option ? colors.primary : colors.border,
-                          backgroundColor: formData.sourceOfWealth === option ? colors.primary : 'transparent',
-                        },
-                      ]}
-                    >
-                      {formData.sourceOfWealth === option && (
-                        <View style={[styles.radioButtonInner, { backgroundColor: colors.background }]} />
-                      )}
+              {sourceOfWealthOptions.map(option => (
+                <View key={option}>
+                  <TouchableOpacity
+                    style={[styles.optionCard, { borderColor: kycData.professional.sourceOfWealth === option ? colors.primary : colors.border }]}
+                    onPress={() => handleSelectSource(option)}
+                  >
+                    <View style={styles.optionContent}>
+                      <View style={[styles.radioButton, { borderColor: colors.border }]}>
+                        {kycData.professional.sourceOfWealth === option && (
+                          <View style={[styles.radioButtonInner, { backgroundColor: colors.primary }]} />
+                        )}
+                      </View>
+                      <Text style={[styles.optionText, { color: colors.text }]}>{option}</Text>
                     </View>
-                    <Text
-                      style={[
-                        styles.optionText,
-                        {
-                          color: formData.sourceOfWealth === option ? colors.primary : colors.text,
-                          fontWeight: formData.sourceOfWealth === option ? '600' : '400',
-                        },
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                  {option === 'Other' && kycData.professional.sourceOfWealth === 'Other' && (
+                    <View style={styles.customInputContainer}>
+                      <View style={[styles.inputContainer, { borderColor: errors.sourceOfWealth ? colors.error : colors.border }]}>
+                        <Briefcase size={20} color={colors.textSecondary} />
+                        <TextInput
+                          style={[styles.textInput, { color: colors.text }]}
+                          value={customSourceOfWealth}
+                          onChangeText={setCustomSourceOfWealth}
+                          placeholder="Please specify"
+                          placeholderTextColor={colors.textSecondary}
+                        />
+                      </View>
+                    </View>
+                  )}
+                </View>
               ))}
             </View>
             {errors.sourceOfWealth && (
               <Text style={[styles.errorText, { color: colors.error }]}>
                 {errors.sourceOfWealth}
               </Text>
-            )}
-
-            {/* Custom Source of Wealth Input */}
-            {formData.sourceOfWealth === 'Other' && (
-              <View style={styles.customInputContainer}>
-                <View style={[styles.inputContainer, { borderColor: errors.customSourceOfWealth ? colors.error : colors.border }]}>
-                  <DollarSign size={20} color={colors.textSecondary} />
-                  <TextInput
-                    style={[styles.textInput, { color: colors.text }]}
-                    value={formData.customSourceOfWealth}
-                    onChangeText={(value) => updateFormData('customSourceOfWealth', value)}
-                    placeholder="Please specify your source of wealth"
-                    placeholderTextColor={colors.textSecondary}
-                  />
-                </View>
-                {errors.customSourceOfWealth && (
-                  <Text style={[styles.errorText, { color: colors.error }]}>
-                    {errors.customSourceOfWealth}
-                  </Text>
-                )}
-              </View>
             )}
           </View>
 

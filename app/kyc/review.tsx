@@ -7,71 +7,100 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, CircleCheck as CheckCircle, CreditCard as Edit, User, FileText, Briefcase, MapPin, Users, Send } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useKYC } from '@/contexts/KYCContext';
+import { useAuth } from '@/contexts/AuthContext';
+import * as FileSystem from 'expo-file-system';
+import { api } from '@/services/api';
 
 export default function ReviewScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { kycData, resetKycData } = useKYC();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock data - in real app, this would come from state management
-  const kycData = {
-    personalDetails: {
-      firstName: 'John',
-      middleName: 'Michael',
-      lastName: 'Doe',
-      gender: 'Male',
-      email: 'john.doe@example.com',
-      phoneNumber: '+254 712 345 678',
-      dateOfBirth: '1990-05-15',
-    },
-    identification: {
-      idDocumentType: 'National ID',
-      idNumber: '12345678',
-      kraPin: 'A123456789B',
-      idDocument: { uri: 'mock-id-document.jpg' },
-      passportPhoto: { uri: 'mock-passport-photo.jpg' },
-    },
-    professional: {
-      occupation: 'Software Engineer',
-      sourceOfWealth: 'Employment Income',
-    },
-    address: {
-      physicalAddress: '123 Main Street, Westlands',
-      city: 'Nairobi',
-      countryOfResidency: 'Kenya',
-      postalAddress: 'P.O. Box 12345',
-      postalCode: '00100',
-    },
-    nextOfKin: {
-      firstName: 'Jane',
-      lastName: 'Doe',
-      relationship: 'Spouse',
-      phoneNumber: '+254 723 456 789',
-      email: 'jane.doe@example.com',
-    },
+  // Helper to convert file URI to a base64 string
+  const fileToBase64 = async (uri: string) => {
+    try {
+      const content = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:image/jpeg;base64,${content}`;
+    } catch (e) {
+      console.error('Failed to read file to base64', e);
+      return null;
+    }
   };
 
   const handleSubmit = async () => {
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to submit KYC.');
+      return;
+    }
+    if (!kycData.identification.idDocument || !kycData.identification.passportPhoto) {
+      Alert.alert('Error', 'ID Document and Passport Photo are required.');
+      return;
+    }
+
     setIsSubmitting(true);
-    
-    // Simulate API submission
-    setTimeout(() => {
-      setIsSubmitting(false);
+
+    try {
+      // Convert files to base64
+      const idDocumentBase64 = await fileToBase64(kycData.identification.idDocument.uri);
+      const passportPhotoBase64 = await fileToBase64(kycData.identification.passportPhoto.uri);
+
+      if (!idDocumentBase64 || !passportPhotoBase64) {
+        throw new Error('Failed to convert files for upload.');
+      }
+
+      const payload = {
+        userId: user.id,
+        ...kycData.personalDetails,
+        idType: kycData.identification.idDocumentType,
+        idNumber: kycData.identification.idNumber,
+        kraPin: kycData.identification.kraPin,
+        occupation: kycData.professional.occupation,
+        sourceOfWealth: kycData.professional.sourceOfWealth,
+        ...kycData.address,
+        ...kycData.nextOfKin,
+        // File data
+        idDocument: {
+          base64: idDocumentBase64,
+          fileName: kycData.identification.idDocument.name,
+        },
+        passportPhoto: {
+          base64: passportPhotoBase64,
+          fileName: kycData.identification.passportPhoto.name,
+        },
+      };
+
+      // Send data to the backend
+      await api.post('/kyc/submit', payload);
+
       Alert.alert(
         'KYC Submitted Successfully',
-        'Your KYC information has been submitted for review. You will receive an email confirmation shortly. The review process typically takes 24-48 hours.',
+        'Your information has been submitted for review. This typically takes 24-48 hours.',
         [
           {
             text: 'OK',
-            onPress: () => router.push('/kyc/status'),
+            onPress: () => {
+              resetKycData(); // Clear the form
+              router.push('/kyc/status');
+            },
           },
         ]
       );
-    }, 2000);
+    } catch (error: any) {
+      console.error('KYC Submission Error:', error);
+      Alert.alert('Submission Failed', error.response?.data?.error || 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const editSection = (section: string) => {
@@ -219,10 +248,10 @@ export default function ReviewScreen() {
                   <Text style={[styles.documentLabel, { color: colors.textSecondary }]}>
                     ID Document
                   </Text>
-                  <View style={[styles.documentStatus, { backgroundColor: colors.success + '20' }]}>
-                    <CheckCircle size={16} color={colors.success} />
-                    <Text style={[styles.documentStatusText, { color: colors.success }]}>
-                      Uploaded
+                  <View style={[styles.documentStatus, { backgroundColor: kycData.identification.idDocument ? colors.success + '20' : colors.error + '20' }]}>
+                    <CheckCircle size={16} color={kycData.identification.idDocument ? colors.success : colors.error} />
+                    <Text style={[styles.documentStatusText, { color: kycData.identification.idDocument ? colors.success : colors.error }]}>
+                      {kycData.identification.idDocument ? 'Uploaded' : 'Missing'}
                     </Text>
                   </View>
                 </View>
@@ -230,10 +259,10 @@ export default function ReviewScreen() {
                   <Text style={[styles.documentLabel, { color: colors.textSecondary }]}>
                     Passport Photo
                   </Text>
-                  <View style={[styles.documentStatus, { backgroundColor: colors.success + '20' }]}>
-                    <CheckCircle size={16} color={colors.success} />
-                    <Text style={[styles.documentStatusText, { color: colors.success }]}>
-                      Uploaded
+                  <View style={[styles.documentStatus, { backgroundColor: kycData.identification.passportPhoto ? colors.success + '20' : colors.error + '20' }]}>
+                    <CheckCircle size={16} color={kycData.identification.passportPhoto ? colors.success : colors.error} />
+                    <Text style={[styles.documentStatusText, { color: kycData.identification.passportPhoto ? colors.success : colors.error }]}>
+                      {kycData.identification.passportPhoto ? 'Uploaded' : 'Missing'}
                     </Text>
                   </View>
                 </View>
@@ -396,6 +425,7 @@ export default function ReviewScreen() {
           <Text style={[styles.submitButtonText, { color: colors.background }]}>
             {isSubmitting ? 'Submitting...' : 'Submit KYC Application'}
           </Text>
+          {isSubmitting && <ActivityIndicator color={colors.background} style={{ marginLeft: 8 }} />}
         </TouchableOpacity>
       </View>
     </View>

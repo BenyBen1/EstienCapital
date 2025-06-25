@@ -10,17 +10,34 @@ import {
   Image,
   RefreshControl,
 } from 'react-native';
-import { User, Settings, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, ChevronRight, Phone, MessageCircle, Mail, CreditCard as Edit, Camera, Bell, Lock, Globe, Download, Star, Award, TrendingUp } from 'lucide-react-native';
+import { User as UserIcon, Settings, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, ChevronRight, Phone, MessageCircle, Mail, CreditCard as Edit, Camera, Bell, Lock, Globe, Download, Star, Award, TrendingUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { LucideIcon } from 'lucide-react-native';
+import type { User } from '@/types/env';
+import ProfileCard from '@/components/profile/ProfileCard';
+import SettingsList from '@/components/profile/SettingsList';
 
 interface ProfileStat {
   label: string;
   value: string;
   icon: any;
   color: string;
+}
+
+interface ProfileOption {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  onPress?: () => void;
+  badge?: boolean;
+  badgeColor?: string;
+  hasSwitch?: boolean;
+  switchValue?: boolean;
+  onSwitchChange?: () => void;
 }
 
 export default function ProfileScreen() {
@@ -157,7 +174,7 @@ export default function ProfileScreen() {
       items: [
         {
           id: 'personal-info',
-          icon: User,
+          icon: UserIcon,
           title: 'Personal Information',
           subtitle: 'Update your personal details',
           onPress: () => Alert.alert('Info', 'Personal information management coming soon'),
@@ -303,126 +320,17 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* User Profile Card */}
-        <View style={[styles.userCard, { backgroundColor: colors.card }]}>
-          <View style={styles.userHeader}>
-            <View style={styles.avatarContainer}>
-              <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.avatarText, { color: colors.background }]}>
-                  {user?.firstName?.charAt(0) || 'J'}{user?.lastName?.charAt(0) || 'D'}
-                </Text>
-              </View>
-              <TouchableOpacity style={[styles.cameraButton, { backgroundColor: colors.background }]}>
-                <Camera size={16} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.userInfo}>
-              <Text style={[styles.userName, { color: colors.text }]}>
-                {user?.firstName || 'John'} {user?.lastName || 'Doe'}
-              </Text>
-              <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-                {user?.email || 'john.doe@example.com'}
-              </Text>
-              <View style={styles.kycBadge}>
-                <View
-                  style={[
-                    styles.kycIndicator,
-                    { backgroundColor: getKycStatusColor() },
-                  ]}
-                />
-                <Text style={[styles.kycText, { color: getKycStatusColor() }]}>
-                  {getKycStatusText()}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.editButton}>
-              <Edit size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Profile Stats */}
-          <View style={styles.statsContainer}>
-            {profileStats.map((stat, index) => (
-              <View key={index} style={styles.statItem}>
-                <View style={[styles.statIcon, { backgroundColor: stat.color + '20' }]}>
-                  <stat.icon size={20} color={stat.color} />
-                </View>
-                <Text style={[styles.statValue, { color: colors.text }]}>
-                  {stat.value}
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  {stat.label}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        <ProfileCard
+          user={user || {}}
+          kycStatus={kycStatus}
+          getKycStatusColor={getKycStatusColor}
+          getKycStatusText={getKycStatusText}
+          profileStats={profileStats}
+          colors={colors}
+        />
 
         {/* Profile Sections */}
-        {profileSections.map((section, sectionIndex) => (
-          <View key={sectionIndex} style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {section.title}
-            </Text>
-            <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
-              {section.items.map((item, itemIndex) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.settingItem,
-                    itemIndex < section.items.length - 1 && {
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.border,
-                    },
-                  ]}
-                  onPress={item.onPress}
-                  disabled={item.hasSwitch}
-                >
-                  <View style={styles.settingLeft}>
-                    <View style={[styles.settingIcon, { backgroundColor: colors.surface }]}>
-                      <item.icon size={20} color={colors.text} />
-                    </View>
-                    <View style={styles.settingText}>
-                      <Text style={[styles.settingTitle, { color: colors.text }]}>
-                        {item.title}
-                      </Text>
-                      <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>
-                        {item.subtitle}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.settingRight}>
-                    {item.badge && (
-                      <View
-                        style={[
-                          styles.badge,
-                          { backgroundColor: item.badgeColor + '20' },
-                        ]}
-                      >
-                        <Text style={[styles.badgeText, { color: item.badgeColor }]}>
-                          ●
-                        </Text>
-                      </View>
-                    )}
-                    {item.hasSwitch ? (
-                      <Switch
-                        value={item.switchValue}
-                        onValueChange={item.onSwitchChange}
-                        trackColor={{
-                          false: colors.border,
-                          true: colors.primary + '40',
-                        }}
-                        thumbColor={item.switchValue ? colors.primary : colors.textSecondary}
-                      />
-                    ) : (
-                      <ChevronRight size={20} color={colors.textSecondary} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        ))}
+        <SettingsList sections={profileSections} colors={colors} />
 
         {/* Quick Actions */}
         <View style={styles.quickActionsSection}>
@@ -509,107 +417,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
-  },
-  userCard: {
-    borderRadius: 20,
-    marginBottom: 32,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    overflow: 'hidden',
-  },
-  userHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 24,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 16,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  kycBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  kycIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  kycText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  editButton: {
-    padding: 8,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    textAlign: 'center',
   },
   section: {
     marginBottom: 24,

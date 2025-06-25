@@ -10,60 +10,43 @@ import {
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, Users, User, Phone, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useKYC } from '@/contexts/KYCContext';
 
 export default function NextOfKinScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    relationship: '',
-    phoneNumber: '',
-    email: '',
-  });
+  const { kycData, setKycData } = useKYC();
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const relationshipOptions = [
-    'Spouse',
-    'Parent',
-    'Child',
-    'Sibling',
-    'Grandparent',
-    'Grandchild',
-    'Uncle/Aunt',
-    'Cousin',
-    'Friend',
-    'Other',
-  ];
+  const relationshipOptions = ['Spouse', 'Parent', 'Sibling', 'Child', 'Other'];
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.firstName.trim()) {
+    if (!kycData.nextOfKin.firstName.trim()) {
       newErrors.firstName = 'First name is required';
-    } else if (!/^[a-zA-Z\s-]+$/.test(formData.firstName)) {
+    } else if (!/^[a-zA-Z\s-]+$/.test(kycData.nextOfKin.firstName)) {
       newErrors.firstName = 'First name can only contain letters, spaces, and hyphens';
     }
 
-    if (!formData.lastName.trim()) {
+    if (!kycData.nextOfKin.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
-    } else if (!/^[a-zA-Z\s-]+$/.test(formData.lastName)) {
+    } else if (!/^[a-zA-Z\s-]+$/.test(kycData.nextOfKin.lastName)) {
       newErrors.lastName = 'Last name can only contain letters, spaces, and hyphens';
     }
 
-    if (!formData.relationship) {
+    if (!kycData.nextOfKin.relationship) {
       newErrors.relationship = 'Relationship is required';
     }
 
-    if (!formData.phoneNumber.trim()) {
+    if (!kycData.nextOfKin.phoneNumber.trim()) {
       newErrors.phoneNumber = 'Phone number is required';
-    } else if (!/^(\+254|0)[17]\d{8}$/.test(formData.phoneNumber.replace(/\s/g, ''))) {
+    } else if (!/^(\+254|0)[17]\d{8}$/.test(kycData.nextOfKin.phoneNumber.replace(/\s/g, ''))) {
       newErrors.phoneNumber = 'Please enter a valid Kenyan phone number';
     }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (kycData.nextOfKin.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(kycData.nextOfKin.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
 
@@ -78,7 +61,13 @@ export default function NextOfKinScreen() {
   };
 
   const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setKycData(prev => ({
+      ...prev,
+      nextOfKin: {
+        ...prev.nextOfKin,
+        [field]: value,
+      },
+    }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -128,7 +117,7 @@ export default function NextOfKinScreen() {
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.firstName}
+                value={kycData.nextOfKin.firstName}
                 onChangeText={(value) => updateFormData('firstName', value)}
                 placeholder="Enter first name"
                 placeholderTextColor={colors.textSecondary}
@@ -151,7 +140,7 @@ export default function NextOfKinScreen() {
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.lastName}
+                value={kycData.nextOfKin.lastName}
                 onChangeText={(value) => updateFormData('lastName', value)}
                 placeholder="Enter last name"
                 placeholderTextColor={colors.textSecondary}
@@ -174,44 +163,28 @@ export default function NextOfKinScreen() {
               How is this person related to you?
             </Text>
             <View style={styles.relationshipContainer}>
-              {relationshipOptions.map((option) => (
+              {relationshipOptions.map(option => (
                 <TouchableOpacity
                   key={option}
                   style={[
                     styles.relationshipOption,
                     {
-                      backgroundColor: formData.relationship === option ? colors.primary + '20' : colors.card,
-                      borderColor: formData.relationship === option ? colors.primary : colors.border,
+                      backgroundColor: kycData.nextOfKin.relationship === option ? colors.primary : colors.card,
+                      borderColor: kycData.nextOfKin.relationship === option ? colors.primary : colors.border,
                     },
                   ]}
                   onPress={() => updateFormData('relationship', option)}
                 >
-                  <View style={styles.relationshipContent}>
-                    <View
-                      style={[
-                        styles.radioButton,
-                        {
-                          borderColor: formData.relationship === option ? colors.primary : colors.border,
-                          backgroundColor: formData.relationship === option ? colors.primary : 'transparent',
-                        },
-                      ]}
-                    >
-                      {formData.relationship === option && (
-                        <View style={[styles.radioButtonInner, { backgroundColor: colors.background }]} />
-                      )}
-                    </View>
-                    <Text
-                      style={[
-                        styles.relationshipText,
-                        {
-                          color: formData.relationship === option ? colors.primary : colors.text,
-                          fontWeight: formData.relationship === option ? '600' : '400',
-                        },
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                  </View>
+                  <Text
+                    style={[
+                      styles.relationshipText,
+                      {
+                        color: kycData.nextOfKin.relationship === option ? colors.background : colors.text,
+                      },
+                    ]}
+                  >
+                    {option}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -231,7 +204,7 @@ export default function NextOfKinScreen() {
               <Phone size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.phoneNumber}
+                value={kycData.nextOfKin.phoneNumber}
                 onChangeText={(value) => updateFormData('phoneNumber', value)}
                 placeholder="+254 7XX XXX XXX"
                 placeholderTextColor={colors.textSecondary}
@@ -257,9 +230,9 @@ export default function NextOfKinScreen() {
               <Mail size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.email}
+                value={kycData.nextOfKin.email}
                 onChangeText={(value) => updateFormData('email', value)}
-                placeholder="email@example.com (optional)"
+                placeholder="Enter email address (optional)"
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -395,24 +368,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: 16,
-  },
-  relationshipContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioButtonInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   },
   relationshipText: {
     fontSize: 16,

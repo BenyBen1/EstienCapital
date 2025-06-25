@@ -10,19 +10,13 @@ import {
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, MapPin, Chrome as Home, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useKYC } from '@/contexts/KYCContext';
 
 export default function AddressScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { kycData, setKycData } = useKYC();
   
-  const [formData, setFormData] = useState({
-    physicalAddress: '',
-    postalAddress: '',
-    postalCode: '',
-    city: '',
-    countryOfResidency: '',
-  });
-
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const countries = [
@@ -39,16 +33,17 @@ export default function AddressScreen() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    const { address } = kycData;
 
-    if (!formData.physicalAddress.trim()) {
+    if (!address.physicalAddress.trim()) {
       newErrors.physicalAddress = 'Physical address is required';
     }
 
-    if (!formData.city.trim()) {
+    if (!address.city.trim()) {
       newErrors.city = 'City/Town is required';
     }
 
-    if (!formData.countryOfResidency) {
+    if (!address.countryOfResidency) {
       newErrors.countryOfResidency = 'Country of residency is required';
     }
 
@@ -63,7 +58,13 @@ export default function AddressScreen() {
   };
 
   const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setKycData(prev => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        [field]: value,
+      },
+    }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -115,10 +116,10 @@ export default function AddressScreen() {
             <View style={[styles.inputContainer, { borderColor: errors.physicalAddress ? colors.error : colors.border }]}>
               <Home size={20} color={colors.textSecondary} />
               <TextInput
-                style={[styles.textAreaInput, { color: colors.text }]}
-                value={formData.physicalAddress}
+                style={[styles.textInput, { color: colors.text }]}
+                value={kycData.address.physicalAddress}
                 onChangeText={(value) => updateFormData('physicalAddress', value)}
-                placeholder="Enter your full physical address including building, street, area"
+                placeholder="e.g., Apartment A, Building B, Street C"
                 placeholderTextColor={colors.textSecondary}
                 multiline
                 numberOfLines={3}
@@ -141,9 +142,9 @@ export default function AddressScreen() {
               <MapPin size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.city}
+                value={kycData.address.city}
                 onChangeText={(value) => updateFormData('city', value)}
-                placeholder="Enter your city or town"
+                placeholder="e.g., Nairobi"
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="words"
               />
@@ -164,44 +165,28 @@ export default function AddressScreen() {
               The country where you currently reside
             </Text>
             <View style={styles.countryContainer}>
-              {countries.map((country) => (
+              {countries.map(country => (
                 <TouchableOpacity
                   key={country}
                   style={[
                     styles.countryOption,
                     {
-                      backgroundColor: formData.countryOfResidency === country ? colors.primary + '20' : colors.card,
-                      borderColor: formData.countryOfResidency === country ? colors.primary : colors.border,
+                      backgroundColor: kycData.address.countryOfResidency === country ? colors.primary : colors.card,
+                      borderColor: kycData.address.countryOfResidency === country ? colors.primary : colors.border,
                     },
                   ]}
                   onPress={() => updateFormData('countryOfResidency', country)}
                 >
-                  <View style={styles.countryContent}>
-                    <View
-                      style={[
-                        styles.radioButton,
-                        {
-                          borderColor: formData.countryOfResidency === country ? colors.primary : colors.border,
-                          backgroundColor: formData.countryOfResidency === country ? colors.primary : 'transparent',
-                        },
-                      ]}
-                    >
-                      {formData.countryOfResidency === country && (
-                        <View style={[styles.radioButtonInner, { backgroundColor: colors.background }]} />
-                      )}
-                    </View>
-                    <Text
-                      style={[
-                        styles.countryText,
-                        {
-                          color: formData.countryOfResidency === country ? colors.primary : colors.text,
-                          fontWeight: formData.countryOfResidency === country ? '600' : '400',
-                        },
-                      ]}
-                    >
-                      {country}
-                    </Text>
-                  </View>
+                  <Text
+                    style={[
+                      styles.countryText,
+                      {
+                        color: kycData.address.countryOfResidency === country ? colors.background : colors.text,
+                      },
+                    ]}
+                  >
+                    {country}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -224,9 +209,9 @@ export default function AddressScreen() {
               <Mail size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.postalAddress}
+                value={kycData.address.postalAddress}
                 onChangeText={(value) => updateFormData('postalAddress', value)}
-                placeholder="P.O. Box address (optional)"
+                placeholder="e.g., P.O. Box 12345"
                 placeholderTextColor={colors.textSecondary}
               />
             </View>
@@ -241,9 +226,9 @@ export default function AddressScreen() {
               <Mail size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.postalCode}
+                value={kycData.address.postalCode}
                 onChangeText={(value) => updateFormData('postalCode', value)}
-                placeholder="Postal code (optional)"
+                placeholder="e.g., 00100"
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="numeric"
               />

@@ -8,5 +8,13 @@ declare global {
   }
 }
 
+export interface User {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  // ...other fields
+}
+
 // Ensure this file is treated as a module
 export {};

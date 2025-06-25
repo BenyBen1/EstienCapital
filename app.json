@@ -10,7 +10,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos for KYC and document uploads.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for KYC and document uploads.",
+        "NSPhotoLibraryAddUsageDescription": "This app needs access to save photos to your library."
+      }
     },
     "web": {
       "bundler": "metro",
@@ -20,6 +25,13 @@
     "plugins": ["expo-router", "expo-font", "expo-web-browser"],
     "experiments": {
       "typedRoutes": true
+    },
+    "android": {
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ],
+      "package": "com.estiencapital.app"
     }
   }
 }

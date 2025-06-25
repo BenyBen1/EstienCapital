@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, ArrowRight, FileText, Upload, Camera, Image as ImageIcon, CheckCircle, User } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, FileText, Upload, Camera, Image as ImageIcon, CircleCheck as CheckCircle, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useKYC } from '@/contexts/KYCContext';
 

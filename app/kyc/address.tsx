@@ -8,7 +8,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ArrowRight, MapPin, Chrome as Home, Mail } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, MapPin, Home, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useKYC } from '@/contexts/KYCContext';
 
@@ -96,7 +96,7 @@ export default function AddressScreen() {
         </Text>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Address & Residency Information
@@ -113,10 +113,15 @@ export default function AddressScreen() {
             <Text style={[styles.labelDescription, { color: colors.textSecondary }]}>
               Your current residential address
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.physicalAddress ? colors.error : colors.border }]}>
-              <Home size={20} color={colors.textSecondary} />
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.physicalAddress ? colors.error : colors.border,
+              backgroundColor: colors.surface,
+              alignItems: 'flex-start',
+              paddingVertical: 16,
+            }]}>
+              <Home size={20} color={colors.textSecondary} style={{ marginTop: 2 }} />
               <TextInput
-                style={[styles.textInput, { color: colors.text }]}
+                style={[styles.textAreaInput, { color: colors.text }]}
                 value={kycData.address.physicalAddress}
                 onChangeText={(value) => updateFormData('physicalAddress', value)}
                 placeholder="e.g., Apartment A, Building B, Street C"
@@ -138,7 +143,10 @@ export default function AddressScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               City/Town *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.city ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.city ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <MapPin size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -205,7 +213,10 @@ export default function AddressScreen() {
             <Text style={[styles.labelDescription, { color: colors.textSecondary }]}>
               If different from physical address (optional)
             </Text>
-            <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Mail size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -222,7 +233,10 @@ export default function AddressScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Postal Code
             </Text>
-            <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Mail size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -337,10 +351,11 @@ const styles = StyleSheet.create({
   labelDescription: {
     fontSize: 14,
     marginBottom: 8,
+    lineHeight: 18,
   },
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -365,27 +380,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
-  countryContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioButtonInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   countryText: {
     fontSize: 16,
-    flex: 1,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   errorText: {
     fontSize: 14,
@@ -404,7 +402,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 14,

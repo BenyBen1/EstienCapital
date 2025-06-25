@@ -106,7 +106,7 @@ export default function ProfessionalScreen() {
         </Text>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Professional & Financial Information
@@ -127,13 +127,25 @@ export default function ProfessionalScreen() {
               {occupationOptions.map(option => (
                 <View key={option}>
                   <TouchableOpacity
-                    style={[styles.optionCard, { borderColor: kycData.professional.occupation === option ? colors.primary : colors.border }]}
+                    style={[
+                      styles.optionCard, 
+                      { 
+                        borderColor: kycData.professional.occupation === option ? colors.primary : colors.border,
+                        backgroundColor: kycData.professional.occupation === option ? colors.primary + '10' : colors.card,
+                      }
+                    ]}
                     onPress={() => handleSelectOccupation(option)}
                   >
                     <View style={styles.optionContent}>
-                      <View style={[styles.radioButton, { borderColor: colors.border }]}>
+                      <View style={[
+                        styles.radioButton, 
+                        { 
+                          borderColor: kycData.professional.occupation === option ? colors.primary : colors.border,
+                          backgroundColor: kycData.professional.occupation === option ? colors.primary : 'transparent',
+                        }
+                      ]}>
                         {kycData.professional.occupation === option && (
-                          <View style={[styles.radioButtonInner, { backgroundColor: colors.primary }]} />
+                          <Check size={12} color={colors.background} />
                         )}
                       </View>
                       <Text style={[styles.optionText, { color: colors.text }]}>{option}</Text>
@@ -141,7 +153,10 @@ export default function ProfessionalScreen() {
                   </TouchableOpacity>
                   {option === 'Other' && kycData.professional.occupation === 'Other' && (
                     <View style={styles.customInputContainer}>
-                      <View style={[styles.inputContainer, { borderColor: errors.occupation ? colors.error : colors.border }]}>
+                      <View style={[styles.inputContainer, { 
+                        borderColor: errors.occupation ? colors.error : colors.border,
+                        backgroundColor: colors.surface 
+                      }]}>
                         <Briefcase size={20} color={colors.textSecondary} />
                         <TextInput
                           style={[styles.textInput, { color: colors.text }]}
@@ -175,13 +190,25 @@ export default function ProfessionalScreen() {
               {sourceOfWealthOptions.map(option => (
                 <View key={option}>
                   <TouchableOpacity
-                    style={[styles.optionCard, { borderColor: kycData.professional.sourceOfWealth === option ? colors.primary : colors.border }]}
+                    style={[
+                      styles.optionCard, 
+                      { 
+                        borderColor: kycData.professional.sourceOfWealth === option ? colors.primary : colors.border,
+                        backgroundColor: kycData.professional.sourceOfWealth === option ? colors.primary + '10' : colors.card,
+                      }
+                    ]}
                     onPress={() => handleSelectSource(option)}
                   >
                     <View style={styles.optionContent}>
-                      <View style={[styles.radioButton, { borderColor: colors.border }]}>
+                      <View style={[
+                        styles.radioButton, 
+                        { 
+                          borderColor: kycData.professional.sourceOfWealth === option ? colors.primary : colors.border,
+                          backgroundColor: kycData.professional.sourceOfWealth === option ? colors.primary : 'transparent',
+                        }
+                      ]}>
                         {kycData.professional.sourceOfWealth === option && (
-                          <View style={[styles.radioButtonInner, { backgroundColor: colors.primary }]} />
+                          <Check size={12} color={colors.background} />
                         )}
                       </View>
                       <Text style={[styles.optionText, { color: colors.text }]}>{option}</Text>
@@ -189,8 +216,11 @@ export default function ProfessionalScreen() {
                   </TouchableOpacity>
                   {option === 'Other' && kycData.professional.sourceOfWealth === 'Other' && (
                     <View style={styles.customInputContainer}>
-                      <View style={[styles.inputContainer, { borderColor: errors.sourceOfWealth ? colors.error : colors.border }]}>
-                        <Briefcase size={20} color={colors.textSecondary} />
+                      <View style={[styles.inputContainer, { 
+                        borderColor: errors.sourceOfWealth ? colors.error : colors.border,
+                        backgroundColor: colors.surface 
+                      }]}>
+                        <DollarSign size={20} color={colors.textSecondary} />
                         <TextInput
                           style={[styles.textInput, { color: colors.text }]}
                           value={customSourceOfWealth}
@@ -213,7 +243,7 @@ export default function ProfessionalScreen() {
 
           {/* Information Note */}
           <View style={[styles.infoCard, { backgroundColor: colors.primary + '10' }]}>
-            <Briefcase size={20} color={colors.primary} />
+            <Info size={20} color={colors.primary} />
             <View style={styles.infoContent}>
               <Text style={[styles.infoTitle, { color: colors.text }]}>
                 Why do we need this information?
@@ -313,6 +343,7 @@ const styles = StyleSheet.create({
   labelDescription: {
     fontSize: 14,
     marginBottom: 16,
+    lineHeight: 18,
   },
   optionsContainer: {
     gap: 12,
@@ -335,13 +366,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  radioButtonInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   optionText: {
     fontSize: 16,
+    fontWeight: '500',
     flex: 1,
   },
   customInputContainer: {
@@ -377,7 +404,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 14,

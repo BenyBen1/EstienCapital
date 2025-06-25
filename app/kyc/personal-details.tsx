@@ -125,7 +125,7 @@ export default function PersonalDetailsScreen() {
         </Text>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Basic Information
@@ -139,7 +139,10 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               First Name *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.firstName ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.firstName ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -162,7 +165,10 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Middle Name
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.middleName ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.middleName ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -185,7 +191,10 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Last Name *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.lastName ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.lastName ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -244,10 +253,10 @@ export default function PersonalDetailsScreen() {
           {/* Email (Read-only) */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.text }]}>Email Address *</Text>
-            <View style={[styles.inputContainer, { backgroundColor: '#333' }]}>
-              <Mail size={20} color={colors.textSecondary} />
+            <View style={[styles.inputContainer, { backgroundColor: colors.primary + '10', borderColor: colors.primary }]}>
+              <Mail size={20} color={colors.primary} />
               <TextInput
-                style={[styles.textInput, { color: '#FFF', fontWeight: 'bold' }]}
+                style={[styles.textInput, { color: colors.text, fontWeight: '600' }]}
                 value={kycData.personalDetails.email}
                 editable={false}
               />
@@ -262,7 +271,10 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Phone Number *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.phoneNumber ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.phoneNumber ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Phone size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -285,7 +297,10 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Date of Birth *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.dateOfBirth ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.dateOfBirth ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Calendar size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -303,6 +318,19 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>
               You must be at least 18 years old to open an account.
             </Text>
+          </View>
+
+          {/* Information Card */}
+          <View style={[styles.infoCard, { backgroundColor: colors.primary + '10' }]}>
+            <User size={20} color={colors.primary} />
+            <View style={styles.infoContent}>
+              <Text style={[styles.infoTitle, { color: colors.text }]}>
+                Important Information
+              </Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                Please ensure all information matches your official identification documents exactly. This information will be verified during the KYC process.
+              </Text>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -412,6 +440,7 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 14,
     marginTop: 4,
+    lineHeight: 18,
   },
   genderContainer: {
     flexDirection: 'row',
@@ -428,6 +457,25 @@ const styles = StyleSheet.create({
   genderText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  infoCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  infoContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   footer: {
     paddingHorizontal: 24,

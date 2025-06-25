@@ -8,10 +8,11 @@ import {
   TextInput,
   Alert,
   Image,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, ArrowRight, FileText, Upload, Camera, Image as ImageIcon, CircleCheck as CheckCircle, User } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, FileText, Upload, Camera, Image as ImageIcon, CheckCircle, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useKYC } from '@/contexts/KYCContext';
 
@@ -31,18 +32,30 @@ export default function IdentificationScreen() {
   const idDocumentTypes = ['National ID', 'Passport'];
 
   useEffect(() => {
-    (async () => {
-      // Request permissions as per Expo docs
-      const mediaLibraryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
-      if (mediaLibraryStatus.status !== 'granted' || cameraStatus.status !== 'granted') {
-        Alert.alert(
-          'Permission required',
-          'We need access to your camera and gallery to upload documents.'
-        );
-      }
-    })();
+    requestPermissions();
   }, []);
+
+  const requestPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      try {
+        const mediaLibraryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
+        
+        if (mediaLibraryStatus.status !== 'granted' || cameraStatus.status !== 'granted') {
+          Alert.alert(
+            'Permissions Required',
+            'We need access to your camera and photo library to upload documents. Please enable these permissions in your device settings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => ImagePicker.requestMediaLibraryPermissionsAsync() }
+            ]
+          );
+        }
+      } catch (error) {
+        console.error('Permission request error:', error);
+      }
+    }
+  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -108,7 +121,6 @@ export default function IdentificationScreen() {
 
   const pickDocument = async (documentType: 'idDocument' | 'passportPhoto') => {
     try {
-      // Expo docs: use enum for mediaTypes, and handle result.assets
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -116,19 +128,17 @@ export default function IdentificationScreen() {
         quality: 0.8,
         base64: false,
       });
+
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         updateDocument(documentType, {
           uri: asset.uri,
-          name: asset.fileName || asset.uri.split('/').pop() || 'file.jpg',
-          type: asset.mimeType || asset.type || 'application/octet-stream',
+          name: asset.fileName || `${documentType}_${Date.now()}.jpg`,
+          type: asset.mimeType || 'image/jpeg',
         });
-      } else if (result.canceled) {
-        // User cancelled
-      } else {
-        // No asset returned
       }
     } catch (error) {
+      console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
@@ -142,24 +152,28 @@ export default function IdentificationScreen() {
         quality: 0.8,
         base64: false,
       });
+
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         updateDocument(documentType, {
           uri: asset.uri,
-          name: asset.fileName || asset.uri.split('/').pop() || 'file.jpg',
-          type: asset.mimeType || asset.type || 'image/jpeg',
+          name: asset.fileName || `${documentType}_${Date.now()}.jpg`,
+          type: asset.mimeType || 'image/jpeg',
         });
-      } else if (result.canceled) {
-        // User cancelled
-      } else {
-        // No asset returned
       }
     } catch (error) {
+      console.error('Camera error:', error);
       Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
   };
 
   const showImagePickerOptions = (documentType: 'idDocument' | 'passportPhoto') => {
+    if (Platform.OS === 'web') {
+      // On web, directly open file picker
+      pickDocument(documentType);
+      return;
+    }
+
     Alert.alert(
       'Select Image',
       'Choose how you want to add your document',
@@ -197,7 +211,7 @@ export default function IdentificationScreen() {
         </Text>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Identity Documents
@@ -247,7 +261,7 @@ export default function IdentificationScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               {kycData.identification.idDocumentType === 'Passport' ? 'Passport Number' : 'ID Number'} *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.idNumber ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { borderColor: errors.idNumber ? colors.error : colors.border, backgroundColor: colors.surface }]}>
               <FileText size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -274,7 +288,7 @@ export default function IdentificationScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               KRA PIN *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.kraPin ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { borderColor: errors.kraPin ? colors.error : colors.border, backgroundColor: colors.surface }]}>
               <FileText size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -302,31 +316,53 @@ export default function IdentificationScreen() {
               {kycData.identification.idDocumentType === 'Passport' ? 'Upload Passport Page' : 'Upload ID Front'} *
             </Text>
             <TouchableOpacity
-              style={[styles.uploadContainer, { borderColor: errors.idDocument ? colors.error : colors.border }]}
+              style={[
+                styles.uploadContainer, 
+                { 
+                  borderColor: errors.idDocument ? colors.error : colors.border,
+                  backgroundColor: colors.surface 
+                }
+              ]}
               onPress={() => showImagePickerOptions('idDocument')}
             >
               {kycData.identification.idDocument ? (
                 <View style={styles.uploadedContainer}>
                   <Image source={{ uri: kycData.identification.idDocument.uri }} style={styles.uploadedImage} />
                   <View style={styles.uploadedInfo}>
-                    <Text style={[styles.uploadedText, { color: colors.text }]} numberOfLines={1}>
+                    <Text style={[styles.uploadedText, { color: colors.text }]} numberOfLines={2}>
                       {kycData.identification.idDocument.name}
                     </Text>
-                    <Text style={[styles.uploadedSubtext, { color: colors.success }]}>
-                      Uploaded successfully
-                    </Text>
+                    <View style={styles.successContainer}>
+                      <CheckCircle size={16} color={colors.success} />
+                      <Text style={[styles.uploadedSubtext, { color: colors.success }]}>
+                        Uploaded successfully
+                      </Text>
+                    </View>
                   </View>
-                  <FileText size={24} color={colors.primary} />
+                  <TouchableOpacity 
+                    style={[styles.changeButton, { backgroundColor: colors.primary + '20' }]}
+                    onPress={() => showImagePickerOptions('idDocument')}
+                  >
+                    <Upload size={16} color={colors.primary} />
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.uploadPlaceholder}>
-                  <FileText size={32} color={colors.textSecondary} />
+                  <View style={[styles.uploadIcon, { backgroundColor: colors.primary + '20' }]}>
+                    <FileText size={32} color={colors.primary} />
+                  </View>
                   <Text style={[styles.uploadText, { color: colors.text }]}>
                     Upload ID Document
                   </Text>
                   <Text style={[styles.uploadSubtext, { color: colors.textSecondary }]}>
                     Take a photo or select from gallery
                   </Text>
+                  <View style={[styles.uploadButton, { backgroundColor: colors.primary }]}>
+                    <Upload size={16} color={colors.background} />
+                    <Text style={[styles.uploadButtonText, { color: colors.background }]}>
+                      Choose File
+                    </Text>
+                  </View>
                 </View>
               )}
             </TouchableOpacity>
@@ -344,31 +380,53 @@ export default function IdentificationScreen() {
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.text }]}>Passport Photo *</Text>
             <TouchableOpacity
-              style={[styles.uploadContainer, { borderColor: errors.passportPhoto ? colors.error : colors.border }]}
+              style={[
+                styles.uploadContainer, 
+                { 
+                  borderColor: errors.passportPhoto ? colors.error : colors.border,
+                  backgroundColor: colors.surface 
+                }
+              ]}
               onPress={() => showImagePickerOptions('passportPhoto')}
             >
               {kycData.identification.passportPhoto ? (
                 <View style={styles.uploadedContainer}>
                   <Image source={{ uri: kycData.identification.passportPhoto.uri }} style={styles.uploadedImageSquare} />
                   <View style={styles.uploadedInfo}>
-                    <Text style={[styles.uploadedText, { color: colors.text }]} numberOfLines={1}>
+                    <Text style={[styles.uploadedText, { color: colors.text }]} numberOfLines={2}>
                       {kycData.identification.passportPhoto.name}
                     </Text>
-                    <Text style={[styles.uploadedSubtext, { color: colors.success }]}>
-                      Uploaded successfully
-                    </Text>
+                    <View style={styles.successContainer}>
+                      <CheckCircle size={16} color={colors.success} />
+                      <Text style={[styles.uploadedSubtext, { color: colors.success }]}>
+                        Uploaded successfully
+                      </Text>
+                    </View>
                   </View>
-                  <FileText size={24} color={colors.primary} />
+                  <TouchableOpacity 
+                    style={[styles.changeButton, { backgroundColor: colors.primary + '20' }]}
+                    onPress={() => showImagePickerOptions('passportPhoto')}
+                  >
+                    <Camera size={16} color={colors.primary} />
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.uploadPlaceholder}>
-                  <Camera size={32} color={colors.textSecondary} />
+                  <View style={[styles.uploadIcon, { backgroundColor: colors.primary + '20' }]}>
+                    <Camera size={32} color={colors.primary} />
+                  </View>
                   <Text style={[styles.uploadText, { color: colors.text }]}>
                     Upload Passport Photo
                   </Text>
                   <Text style={[styles.uploadSubtext, { color: colors.textSecondary }]}>
                     Recent, clear passport-style photograph
                   </Text>
+                  <View style={[styles.uploadButton, { backgroundColor: colors.primary }]}>
+                    <Camera size={16} color={colors.background} />
+                    <Text style={[styles.uploadButtonText, { color: colors.background }]}>
+                      Take Photo
+                    </Text>
+                  </View>
                 </View>
               )}
             </TouchableOpacity>
@@ -380,6 +438,22 @@ export default function IdentificationScreen() {
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>
               Use a recent, clear photo with a plain background. Face should be clearly visible.
             </Text>
+          </View>
+
+          {/* Information Card */}
+          <View style={[styles.infoCard, { backgroundColor: colors.primary + '10' }]}>
+            <FileText size={20} color={colors.primary} />
+            <View style={styles.infoContent}>
+              <Text style={[styles.infoTitle, { color: colors.text }]}>
+                Document Requirements
+              </Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                • Documents must be clear and legible{'\n'}
+                • All corners must be visible{'\n'}
+                • No glare or shadows{'\n'}
+                • Photos should be recent and high quality
+              </Text>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -488,6 +562,7 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 14,
     marginTop: 4,
+    lineHeight: 18,
   },
   documentTypeContainer: {
     flexDirection: 'row',
@@ -504,9 +579,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   documentTypeText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     marginLeft: 8,
+    textAlign: 'center',
   },
   uploadContainer: {
     borderWidth: 2,
@@ -514,24 +590,49 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
+    minHeight: 120,
   },
   uploadPlaceholder: {
     alignItems: 'center',
+    width: '100%',
+  },
+  uploadIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   uploadText: {
     fontSize: 16,
     fontWeight: '600',
-    marginTop: 12,
     marginBottom: 4,
+    textAlign: 'center',
   },
   uploadSubtext: {
     fontSize: 14,
     textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  uploadButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   uploadedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
+    padding: 8,
   },
   uploadedImage: {
     width: 60,
@@ -547,14 +648,44 @@ const styles = StyleSheet.create({
   },
   uploadedInfo: {
     flex: 1,
+    marginRight: 12,
   },
   uploadedText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 4,
+  },
+  successContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   uploadedSubtext: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  changeButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  infoContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  infoText: {
     fontSize: 14,
+    lineHeight: 20,
   },
   footer: {
     paddingHorizontal: 24,

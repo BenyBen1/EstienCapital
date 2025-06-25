@@ -99,7 +99,7 @@ export default function NextOfKinScreen() {
         </Text>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Next of Kin Information
@@ -113,7 +113,10 @@ export default function NextOfKinScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               First Name *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.firstName ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.firstName ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -136,7 +139,10 @@ export default function NextOfKinScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Last Name *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.lastName ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.lastName ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -200,7 +206,10 @@ export default function NextOfKinScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Phone Number *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.phoneNumber ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.phoneNumber ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Phone size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -226,7 +235,10 @@ export default function NextOfKinScreen() {
             <Text style={[styles.labelDescription, { color: colors.textSecondary }]}>
               Optional - for additional contact method
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.email ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.email ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Mail size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
@@ -347,6 +359,7 @@ const styles = StyleSheet.create({
   labelDescription: {
     fontSize: 14,
     marginBottom: 8,
+    lineHeight: 18,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -371,7 +384,8 @@ const styles = StyleSheet.create({
   },
   relationshipText: {
     fontSize: 16,
-    flex: 1,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   errorText: {
     fontSize: 14,
@@ -390,7 +404,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 14,

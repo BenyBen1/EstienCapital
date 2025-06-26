@@ -37,6 +37,7 @@ const BASE_URL = 'http://192.168.0.175:5000';
 export default function TransactionsScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
   const [filterType, setFilterType] = useState<TransactionType>('all');
   const [filterStatus, setFilterStatus] = useState<TransactionStatus>('all');
   const [refreshing, setRefreshing] = useState(false);
@@ -44,7 +45,6 @@ export default function TransactionsScreen() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   // Fetch transactions from backend
   const fetchTransactions = async () => {
@@ -96,6 +96,13 @@ export default function TransactionsScreen() {
       transaction.reference?.toLowerCase().includes(searchQuery.toLowerCase());
     return typeMatch && statusMatch && searchMatch;
   });
+
+  // KYC check: Only allow access if KYC is approved
+  useEffect(() => {
+    if (user?.kycStatus !== 'approved') {
+      router.replace('/kyc');
+    }
+  }, [user?.kycStatus]);
 
   if (isLoading) {
     return (

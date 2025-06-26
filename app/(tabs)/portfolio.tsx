@@ -44,6 +44,7 @@ interface PerformanceMetric {
 export default function PortfolioScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
   const [hideBalance, setHideBalance] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('1M');
   const [chartType, setChartType] = useState<'line' | 'pie'>('line');
@@ -54,8 +55,6 @@ export default function PortfolioScreen() {
   const [holdings, setHoldings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const router = useRouter();
 
   // Fetch portfolio data from backend
   const fetchPortfolio = async () => {
@@ -202,14 +201,21 @@ export default function PortfolioScreen() {
     },
   ];
 
-  if (error === 'kyc_required') {
+  // KYC check: Only allow access if KYC is approved
+  useEffect(() => {
+    if (user?.kycStatus !== 'approved') {
+      router.replace('/kyc');
+    }
+  }, [user?.kycStatus]);
+
+  if (error === 'kyc_required' || user?.kycStatus !== 'approved') {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 32 }}>
         <Text style={{ color: colors.text, fontSize: 20, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
-          You need to complete KYC to access your portfolio.
+          Complete KYC to Access Your Portfolio
         </Text>
         <Text style={{ color: colors.textSecondary, fontSize: 16, marginBottom: 32, textAlign: 'center' }}>
-          For your security and compliance, please complete your KYC verification.
+          For your security and compliance, please complete your KYC verification to view your portfolio and investments.
         </Text>
         <TouchableOpacity
           style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8 }}

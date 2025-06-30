@@ -88,8 +88,32 @@ export default function IdentificationScreen() {
   };
 
   const handleNext = () => {
-    if (validateForm()) {
-      router.push('/kyc/professional');
+    console.log('handleNext called');
+    console.log('Current kycData:', kycData);
+    console.log('Current errors:', errors);
+    
+    const isValid = validateForm();
+    console.log('Validation result:', isValid);
+    
+    if (isValid) {
+      console.log('Validation passed, navigating to professional');
+      // Try different navigation methods
+      try {
+        router.replace('/kyc/professional');
+      } catch (error) {
+        console.error('router.replace failed:', error);
+        try {
+          router.push('/kyc/professional');
+        } catch (error2) {
+          console.error('router.push failed:', error2);
+          // Last resort - try with navigate
+          router.navigate('/kyc/professional');
+        }
+      }
+    } else {
+      console.log('Validation failed, errors:', errors);
+      // Show an alert to indicate validation failed
+      Alert.alert('Validation Error', 'Please fill in all required fields correctly.');
     }
   };
 
@@ -122,7 +146,6 @@ export default function IdentificationScreen() {
   const pickDocument = async (documentType: 'idDocument' | 'passportPhoto') => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: documentType === 'passportPhoto' ? [1, 1] : [4, 3],
         quality: 0.8,
@@ -146,7 +169,6 @@ export default function IdentificationScreen() {
   const takePhoto = async (documentType: 'idDocument' | 'passportPhoto') => {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: documentType === 'passportPhoto' ? [1, 1] : [4, 3],
         quality: 0.8,
@@ -174,6 +196,7 @@ export default function IdentificationScreen() {
       return;
     }
 
+    // For both ID Document and passportPhoto, allow both camera and gallery
     Alert.alert(
       'Select Image',
       'Choose how you want to add your document',
@@ -462,7 +485,10 @@ export default function IdentificationScreen() {
       <View style={[styles.footer, { backgroundColor: colors.surface }]}>
         <TouchableOpacity
           style={[styles.nextButton, { backgroundColor: colors.primary }]}
-          onPress={handleNext}
+          onPress={() => {
+            console.log('Button pressed!');
+            handleNext();
+          }}
         >
           <Text style={[styles.nextButtonText, { color: colors.background }]}>
             Continue

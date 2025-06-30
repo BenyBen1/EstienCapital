@@ -2,9 +2,14 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface User {
-  id: number;
+  id: string;
   email: string;
   firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  kycStatus: 'pending' | 'approved' | 'rejected' | 'not_started';
+  createdAt: string;
+  updatedAt: string;
   // Add more fields as needed
 }
 

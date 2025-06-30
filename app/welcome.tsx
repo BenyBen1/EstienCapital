@@ -34,33 +34,34 @@ export default function WelcomeScreen() {
             resizeMode="contain"
           />
         </View>
-        <View style={styles.welcomeContent}>
-          <Text style={[styles.welcomeTitle, { color: colors.text }]}>
-            Welcome to Estien Capital
-          </Text>
-          <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
-            Professional digital asset investment platform
-          </Text>
-          <Text style={[styles.welcomeDescription, { color: colors.textSecondary }]}>
-            Secure access to cryptocurrency investments with expert analysis and institutional-grade portfolio management
-          </Text>
+        <View style={styles.overlayBox}>
+          <View style={styles.welcomeContent}>
+            <Text style={[styles.welcomeTitle, { color: colors.text, textShadowColor: '#0002', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 }]}
+              numberOfLines={2} ellipsizeMode="tail">
+              Welcome to Estien Capital
+            </Text>
+            <Text style={[styles.welcomeSubtitle, { color: colors.primary, textShadowColor: '#0002', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 2 }]}
+              numberOfLines={2} ellipsizeMode="tail">
+              Professional Digital Asset Investment Platform
+            </Text>
+            <Text style={[styles.welcomeDescription, { color: colors.textSecondary, textShadowColor: '#0001', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 2 }]}
+              numberOfLines={3} ellipsizeMode="tail">
+              Secure access to cryptocurrency investments with expert analysis and institutional-grade portfolio management.
+            </Text>
+          </View>
         </View>
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: colors.primary }]}
             onPress={() => router.push('/auth/signup')}
           >
-            <Text style={[styles.primaryButtonText, { color: colors.background }]}>
-              Create Account
-            </Text>
+            <Text style={[styles.primaryButtonText, { color: colors.background }]}>Create Account</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.secondaryButton, { borderColor: colors.primary }]}
             onPress={() => router.push('/auth/login')}
           >
-            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>
-              Log In
-            </Text>
+            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Log In</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -89,30 +90,48 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 16,
   },
+  overlayBox: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 20,
+    padding: 24,
+    marginVertical: 24,
+    marginHorizontal: 0,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+  },
   welcomeContent: {
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
+    width: '100%',
   },
   welcomeTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 36,
+    fontWeight: '900',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 18,
+    letterSpacing: 0.5,
   },
   welcomeSubtitle: {
-    fontSize: 18,
+    fontSize: 22,
     textAlign: 'center',
-    marginBottom: 20,
-    fontWeight: '500',
+    marginBottom: 18,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   welcomeDescription: {
-    fontSize: 16,
+    fontSize: 17,
     textAlign: 'center',
-    lineHeight: 24,
-    opacity: 0.8,
+    lineHeight: 26,
+    opacity: 0.9,
+    fontWeight: '500',
+    marginBottom: 4,
   },
   buttonContainer: {
-    gap: 16,
+    gap: 18,
+    marginTop: 16,
   },
   primaryButton: {
     height: 56,

@@ -15,7 +15,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useKYC } from '@/contexts/KYCContext';
 import { useAuth } from '@/contexts/AuthContext';
 import * as FileSystem from 'expo-file-system';
-import { api } from '@/services/api';
+import { apiClient } from '@/services/api';
 
 export default function ReviewScreen() {
   const router = useRouter();
@@ -38,21 +38,37 @@ export default function ReviewScreen() {
   };
 
   const handleSubmit = async () => {
+    console.log('🚀 Starting KYC submission...');
+    
     if (!user) {
+      console.error('❌ No user found');
       Alert.alert('Error', 'You must be logged in to submit KYC.');
       return;
     }
     if (!kycData.identification.idDocument || !kycData.identification.passportPhoto) {
+      console.error('❌ Missing documents:', {
+        idDocument: !!kycData.identification.idDocument,
+        passportPhoto: !!kycData.identification.passportPhoto
+      });
       Alert.alert('Error', 'ID Document and Passport Photo are required.');
       return;
     }
 
+    console.log('✅ Validation passed, starting submission...');
     setIsSubmitting(true);
 
     try {
+      console.log('📸 Converting files to base64...');
       // Convert files to base64
       const idDocumentBase64 = await fileToBase64(kycData.identification.idDocument.uri);
       const passportPhotoBase64 = await fileToBase64(kycData.identification.passportPhoto.uri);
+
+      console.log('📄 Base64 conversion results:', {
+        idDocumentSuccess: !!idDocumentBase64,
+        passportPhotoSuccess: !!passportPhotoBase64,
+        idDocumentSize: idDocumentBase64?.length || 0,
+        passportPhotoSize: passportPhotoBase64?.length || 0
+      });
 
       if (!idDocumentBase64 || !passportPhotoBase64) {
         throw new Error('Failed to convert files for upload.');
@@ -79,8 +95,13 @@ export default function ReviewScreen() {
         },
       };
 
-      // Send data to the backend
-      await api.post('/kyc/submit', payload);
+      console.log('📦 Payload prepared, sending to API...');
+      console.log('  Payload keys:', Object.keys(payload));
+      console.log('  Total payload size:', JSON.stringify(payload).length, 'characters');
+
+      // Send data to the backend using apiClient
+      const result = await apiClient.submitKYC(payload);
+      console.log('✅ API call successful:', result);
 
       Alert.alert(
         'KYC Submitted Successfully',
@@ -96,8 +117,14 @@ export default function ReviewScreen() {
         ]
       );
     } catch (error: any) {
-      console.error('KYC Submission Error:', error);
-      Alert.alert('Submission Failed', error.response?.data?.error || 'An unexpected error occurred. Please try again.');
+      console.error('💥 KYC Submission Error:', error);
+      console.error('  Error type:', typeof error);
+      console.error('  Error message:', error?.message);
+      console.error('  Error stack:', error?.stack);
+      
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      if (error?.message) errorMessage = error.message;
+      Alert.alert('Submission Failed', errorMessage);
     } finally {
       setIsSubmitting(false);
     }

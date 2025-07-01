@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Chrome as Home, TrendingUp, CreditCard, Target, User } from 'lucide-react-native';
+import { Chrome as Home, TrendingUp, CreditCard, Target, FileText, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function TabLayout() {
@@ -57,6 +57,15 @@ export default function TabLayout() {
           title: 'Goals',
           tabBarIcon: ({ size, color }) => (
             <Target size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="memos"
+        options={{
+          title: 'Memos',
+          tabBarIcon: ({ size, color }) => (
+            <FileText size={size} color={color} />
           ),
         }}
       />

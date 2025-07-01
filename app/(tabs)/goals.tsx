@@ -13,6 +13,10 @@ import {
 } from 'react-native';
 import { Target, Plus, CreditCard as Edit3, Trash2, Calendar, DollarSign, TrendingUp, X, CircleCheck as CheckCircle, Clock, CircleAlert as AlertCircle, MoveHorizontal as MoreHorizontal, Filter, ChartPie as PieChart } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '@/services/config';
+import { apiFetch } from '@/services/apiFetch';
 
 interface Goal {
   id: string;
@@ -38,6 +42,7 @@ interface GoalCategory {
 
 export default function GoalsScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,6 +54,9 @@ export default function GoalsScreen() {
     priority: 'medium' as Goal['priority'],
     monthlyContribution: '',
   });
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const goalCategories: GoalCategory[] = [
     {
@@ -95,94 +103,89 @@ export default function GoalsScreen() {
     },
   ];
 
-  const [goals, setGoals] = useState<Goal[]>([
-    {
-      id: '1',
-      name: 'Emergency Fund',
-      targetAmount: 200000,
-      currentAmount: 85000,
-      targetDate: '2024-12-31',
-      linkedInvestment: 'Digitika Fund',
-      progress: 42.5,
-      category: 'emergency',
-      priority: 'high',
-      monthlyContribution: 15000,
-      image: 'https://images.pexels.com/photos/4386321/pexels-photo-4386321.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '2',
-      name: 'New Car',
-      targetAmount: 1500000,
-      currentAmount: 300000,
-      targetDate: '2025-06-30',
-      linkedInvestment: 'Digitika Fund',
-      progress: 20,
-      category: 'purchase',
-      priority: 'medium',
-      monthlyContribution: 25000,
-      image: 'https://images.pexels.com/photos/164634/pexels-photo-164634.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '3',
-      name: 'Children\'s Education',
-      targetAmount: 3000000,
-      currentAmount: 450000,
-      targetDate: '2030-01-01',
-      linkedInvestment: 'Digitika Fund',
-      progress: 15,
-      category: 'education',
-      priority: 'high',
-      monthlyContribution: 20000,
-      image: 'https://images.pexels.com/photos/159844/cellular-education-classroom-159844.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-    {
-      id: '4',
-      name: 'Retirement Fund',
-      targetAmount: 5000000,
-      currentAmount: 125000,
-      targetDate: '2045-01-01',
-      linkedInvestment: 'Digitika Fund',
-      progress: 2.5,
-      category: 'retirement',
-      priority: 'medium',
-      monthlyContribution: 10000,
-      image: 'https://images.pexels.com/photos/1642228/pexels-photo-1642228.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop',
-    },
-  ]);
+  // Fetch goals from backend
+  const fetchGoals = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) throw new Error('No auth token found. Please log in again.');
+      const res = await apiFetch(`/api/goals/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch goals');
+      setGoals(
+        (data.goals || []).map((g: any) => ({
+          id: g.id,
+          name: g.title,
+          targetAmount: g.target_amount,
+          currentAmount: g.current_amount,
+          targetDate: g.target_date,
+          progress: g.progress,
+          category: g.category,
+          priority: g.priority,
+          monthlyContribution: undefined, // backend can be extended
+          image: undefined, // can be mapped from category if needed
+        }))
+      );
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch goals');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGoals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
+    await fetchGoals();
   };
 
-  const handleAddGoal = () => {
+  // Add goal via backend
+  const handleAddGoal = async () => {
     if (!goalForm.name || !goalForm.targetAmount || !goalForm.targetDate) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
-
-    const category = goalCategories.find(cat => cat.id === goalForm.category);
-    const newGoal: Goal = {
-      id: Date.now().toString(),
-      name: goalForm.name,
-      targetAmount: parseFloat(goalForm.targetAmount),
-      currentAmount: 0,
-      targetDate: goalForm.targetDate,
-      progress: 0,
-      category: goalForm.category,
-      priority: goalForm.priority,
-      monthlyContribution: goalForm.monthlyContribution ? parseFloat(goalForm.monthlyContribution) : undefined,
-      image: category?.icon,
-    };
-
-    setGoals([...goals, newGoal]);
-    setShowAddModal(false);
-    resetForm();
-    Alert.alert('Success', 'Goal added successfully!');
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) throw new Error('No auth token found. Please log in again.');
+      const res = await apiFetch(`/api/goals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: user?.id,
+          title: goalForm.name,
+          description: '',
+          targetAmount: parseFloat(goalForm.targetAmount),
+          currentAmount: 0,
+          targetDate: goalForm.targetDate,
+          priority: goalForm.priority,
+          category: goalForm.category,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add goal');
+      setShowAddModal(false);
+      resetForm();
+      fetchGoals();
+      Alert.alert('Success', 'Goal added successfully!');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to add goal');
+    }
   };
 
+  // Delete goal via backend
   const handleDeleteGoal = (id: string) => {
     Alert.alert(
       'Delete Goal',
@@ -192,8 +195,20 @@ export default function GoalsScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setGoals(goals.filter(goal => goal.id !== id));
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('auth_token');
+              if (!token) throw new Error('No auth token found. Please log in again.');
+              const res = await apiFetch(`/api/goals/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed to delete goal');
+              fetchGoals();
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete goal');
+            }
           },
         },
       ]
@@ -274,6 +289,24 @@ export default function GoalsScreen() {
   };
 
   const stats = getGoalStats();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 18 }}>Loading goals...</Text>
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <Text style={{ color: colors.error, fontSize: 18 }}>{error}</Text>
+        <TouchableOpacity onPress={fetchGoals} style={{ marginTop: 24, backgroundColor: colors.primary, padding: 12, borderRadius: 8 }}>
+          <Text style={{ color: colors.background, fontWeight: 'bold' }}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

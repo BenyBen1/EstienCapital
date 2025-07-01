@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '@/services/config';
+import { apiFetch } from '@/services/apiFetch';
+import { supabase } from '@/services/supabase';
 
 interface User {
   id: string;
@@ -44,11 +47,8 @@ const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'user_data';
 
-
-const BASE_URL = 'http://192.168.0.175:5000';
-
 async function fetchUserProfile(userId: string) {
-  const response = await fetch(`${BASE_URL}/api/profile/${userId}`);
+  const response = await apiFetch(`/api/profile/${userId}`);
   if (!response.ok) throw new Error('Failed to fetch user profile');
   return await response.json();
 }
@@ -59,35 +59,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = !!user;
 
-  // Initialize auth state on app start
+  // Restore session on app start
   useEffect(() => {
-    initializeAuth();
-  }, []);
-
-  const initializeAuth = async () => {
-    try {
-      const [token, userData] = await Promise.all([
-        AsyncStorage.getItem(TOKEN_KEY),
-        AsyncStorage.getItem(USER_KEY),
-      ]);
-
-      if (token && userData) {
-        const parsedUser = JSON.parse(userData);
-        // Fetch latest profile info
-        try {
-          const profile = await fetchUserProfile(String(parsedUser.id));
-          setUser({ ...parsedUser, ...profile });
-        } catch {
+    const initializeAuth = async () => {
+      try {
+        const [token, refreshToken, userData] = await Promise.all([
+          AsyncStorage.getItem(TOKEN_KEY),
+          AsyncStorage.getItem(REFRESH_TOKEN_KEY),
+          AsyncStorage.getItem(USER_KEY),
+        ]);
+        // Restore Supabase session if tokens exist
+        if (token && refreshToken) {
+          await supabase.auth.setSession({
+            access_token: token,
+            refresh_token: refreshToken,
+          });
+        }
+        if (token && userData) {
+          const parsedUser = JSON.parse(userData);
+          // Optionally fetch latest profile
           setUser(parsedUser);
         }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+        await clearAuthData();
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Failed to initialize auth:', error);
-      await clearAuthData();
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+    initializeAuth();
+  }, []);
 
   const saveAuthData = async (user: User) => {
     await Promise.all([
@@ -120,8 +121,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         throw new Error(data.error || 'Login failed');
       }
+      // Set Supabase session so supabase.auth.getSession() works
+      if (data.session?.access_token && data.session?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+      }
       // Save token and user
       await AsyncStorage.setItem(TOKEN_KEY, data.session?.access_token || '');
+      await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.session?.refresh_token || '');
       // Fetch latest profile info
       let profile = data.user;
       try {

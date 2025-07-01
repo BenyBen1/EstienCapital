@@ -16,9 +16,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { BASE_URL } from '@/services/config';
+import { apiFetch } from '@/services/apiFetch';
 
 const { width } = Dimensions.get('window');
-const BASE_URL = 'http://192.168.0.175:5000';
 
 interface Holding {
   id: string;
@@ -64,7 +65,7 @@ export default function PortfolioScreen() {
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) throw new Error('No auth token found. Please log in again.');
-      const response = await fetch(`${BASE_URL}/api/portfolio`, {
+      const response = await apiFetch(`${BASE_URL}/api/portfolio`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -202,13 +203,7 @@ export default function PortfolioScreen() {
   ];
 
   // KYC check: Only allow access if KYC is approved
-  useEffect(() => {
-    if (user?.kycStatus !== 'approved') {
-      router.replace('/kyc');
-    }
-  }, [user?.kycStatus]);
-
-  if (error === 'kyc_required' || user?.kycStatus !== 'approved') {
+  if (user?.kycStatus !== 'approved') {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 32 }}>
         <Text style={{ color: colors.text, fontSize: 20, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
@@ -218,10 +213,16 @@ export default function PortfolioScreen() {
           For your security and compliance, please complete your KYC verification to view your portfolio and investments.
         </Text>
         <TouchableOpacity
-          style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8 }}
+          style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8, marginBottom: 16 }}
           onPress={() => router.push('/kyc')}
         >
           <Text style={{ color: colors.background, fontWeight: 'bold', fontSize: 16 }}>Start KYC</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ backgroundColor: colors.card, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8 }}
+          onPress={() => router.push('/')}
+        >
+          <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 16 }}>Back to Home</Text>
         </TouchableOpacity>
       </View>
     );

@@ -20,7 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import DepositModal from '@/components/DepositModal';
 import WithdrawModal from '@/components/WithdrawModal';
 import DepositInstructionsModal from '@/components/DepositInstructionsModal';
-import { BASE_URL } from '@/contexts/AuthContext';
+import { BASE_URL } from '@/services/config';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 
@@ -33,11 +34,11 @@ interface MarketData {
   image: string;
 }
 
-interface NewsItem {
+interface MemoItem {
   id: string;
   title: string;
   summary: string;
-  image: string;
+  author: string;
   timestamp: string;
   category: string;
 }
@@ -45,6 +46,7 @@ interface NewsItem {
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [kycStatus, setKycStatus] = useState<string>('');
   const [balance, setBalance] = useState<number | null>(null);
@@ -58,6 +60,9 @@ export default function HomeScreen() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
   const [copiedField, setCopiedField] = useState('');
+  const [memoItems, setMemoItems] = useState<MemoItem[]>([]);
+  const [memosLoading, setMemosLoading] = useState(true);
+  const [memosError, setMemosError] = useState<string | null>(null);
 
   // Bank details for deposit instructions
   const [bankDetails] = useState({
@@ -118,29 +123,10 @@ export default function HomeScreen() {
     },
   ];
 
-  const newsItems: NewsItem[] = [
-    {
-      id: '1',
-      title: 'Bitcoin Reaches New Monthly High',
-      summary: 'Institutional adoption drives BTC to new heights as major corporations announce treasury allocations.',
-      image: 'https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop',
-      timestamp: '2 hours ago',
-      category: 'Market',
-    },
-    {
-      id: '2',
-      title: 'DeFi Protocol Launches New Yield Farming',
-      summary: 'Revolutionary staking mechanism promises higher returns with reduced risk exposure.',
-      image: 'https://images.pexels.com/photos/844124/pexels-photo-844124.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop',
-      timestamp: '4 hours ago',
-      category: 'DeFi',
-    },
-  ];
-
   const quickActions = [
     { id: 'deposit', title: 'Deposit', icon: Plus, color: colors.success, description: 'Add funds', onPress: () => setShowDepositModal(true) },
     { id: 'withdraw', title: 'Withdraw', icon: Minus, color: colors.error, description: 'Take profits', onPress: () => setShowWithdrawModal(true) },
-    { id: 'invest', title: 'Invest', icon: TrendingUp, color: colors.primary, description: 'Buy assets', onPress: () => {/* TODO: handle invest */} },
+    { id: 'invest', title: 'Invest', icon: TrendingUp, color: colors.primary, description: 'View products', onPress: () => router.push('/products') },
     { id: 'goals', title: 'Goals', icon: Target, color: colors.warning, description: 'Set targets', onPress: () => {/* TODO: handle goals */} },
   ];
 
@@ -226,6 +212,21 @@ export default function HomeScreen() {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    setMemosLoading(true);
+    setMemosError(null);
+    fetch(`${BASE_URL}/api/memos`)
+      .then(res => res.json())
+      .then(data => {
+        setMemoItems(data);
+        setMemosLoading(false);
+      })
+      .catch(err => {
+        setMemosError('Failed to load memos');
+        setMemosLoading(false);
+      });
+  }, []);
+
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -291,13 +292,7 @@ export default function HomeScreen() {
             <View style={styles.portfolioStat}>
               <TrendingUp size={16} color={colors.background} />
               <Text style={[styles.gainText, { color: colors.background }]}>
-                +KES {totalGain.toLocaleString()} (+{gainPercentage}%)
-              </Text>
-            </View>
-            <View style={styles.portfolioStat}>
-              <DollarSign size={16} color={colors.background} />
-              <Text style={[styles.cashText, { color: colors.background }]}>
-                Cash: KES {availableCash.toLocaleString()}
+                +KES {totalGain.toLocaleString()}
               </Text>
             </View>
           </View>
@@ -359,162 +354,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
-
-      {/* Market Overview */}
-      <View style={styles.marketSection}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Market Overview
-          </Text>
-          <TouchableOpacity>
-            <Text style={[styles.seeAllText, { color: colors.primary }]}>
-              View All
-            </Text>
-          </TouchableOpacity>
-        </View>
-        
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.marketCards}>
-            {marketData.map((item) => (
-              <TouchableOpacity
-                key={item.symbol}
-                style={[styles.marketCard, { backgroundColor: colors.card }]}
-              >
-                <View style={styles.marketCardHeader}>
-                  <Image source={{ uri: item.image }} style={styles.marketIcon} />
-                  <View style={styles.marketInfo}>
-                    <Text style={[styles.marketSymbol, { color: colors.text }]}>
-                      {item.symbol}
-                    </Text>
-                    <Text style={[styles.marketName, { color: colors.textSecondary }]}>
-                      {item.name}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={[styles.marketPrice, { color: colors.text }]}>
-                  ${item.price.toLocaleString()}
-                </Text>
-                <View style={styles.marketChange}>
-                  {item.change > 0 ? (
-                    <ArrowUpRight size={16} color={colors.success} />
-                  ) : (
-                    <ArrowDownLeft size={16} color={colors.error} />
-                  )}
-                  <Text
-                    style={[
-                      styles.marketChangeText,
-                      { color: item.change > 0 ? colors.success : colors.error },
-                    ]}
-                  >
-                    {item.changePercent > 0 ? '+' : ''}{item.changePercent}%
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Recent Activity */}
-      <View style={styles.activitySection}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Recent Activity
-          </Text>
-          <TouchableOpacity>
-            <Text style={[styles.seeAllText, { color: colors.primary }]}>
-              View All
-            </Text>
-          </TouchableOpacity>
-        </View>
-        
-        {recentTransactions.slice(0, 3).map((transaction) => (
-          <TouchableOpacity
-            key={transaction.id}
-            style={[styles.activityCard, { backgroundColor: colors.card }]}
-          >
-            <View style={styles.activityLeft}>
-              <View
-                style={[
-                  styles.activityIcon,
-                  {
-                    backgroundColor: getActivityColor(transaction.type) + '20',
-                  },
-                ]}
-              >
-                {getActivityIcon(transaction.type, getActivityColor(transaction.type))}
-              </View>
-              <View style={styles.activityInfo}>
-                <Text style={[styles.activityTitle, { color: colors.text }]}>
-                  {transaction.description}
-                </Text>
-                <Text style={[styles.activityDate, { color: colors.textSecondary }]}>
-                  {transaction.date} • {transaction.asset}
-                </Text>
-              </View>
-            </View>
-            
-            <View style={styles.activityRight}>
-              <Text
-                style={[
-                  styles.activityAmount,
-                  {
-                    color: getActivityAmountColor(transaction.type),
-                  },
-                ]}
-              >
-                {getActivityPrefix(transaction.type)}KES {transaction.amount.toLocaleString()}
-              </Text>
-              <View style={[styles.statusBadge, { backgroundColor: colors.success + '20' }]}>
-                <Text style={[styles.statusText, { color: colors.success }]}>
-                  {transaction.status}
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* News & Insights */}
-      <View style={styles.newsSection}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Market News
-          </Text>
-          <TouchableOpacity>
-            <Text style={[styles.seeAllText, { color: colors.primary }]}>
-              View All
-            </Text>
-          </TouchableOpacity>
-        </View>
-        
-        {newsItems.map((news) => (
-          <TouchableOpacity
-            key={news.id}
-            style={[styles.newsCard, { backgroundColor: colors.card }]}
-          >
-            <Image source={{ uri: news.image }} style={styles.newsImage} />
-            <View style={styles.newsContent}>
-              <View style={styles.newsHeader}>
-                <View style={[styles.categoryBadge, { backgroundColor: colors.primary + '20' }]}>
-                  <Text style={[styles.categoryText, { color: colors.primary }]}>
-                    {news.category}
-                  </Text>
-                </View>
-                <Text style={[styles.newsTimestamp, { color: colors.textSecondary }]}>
-                  {news.timestamp}
-                </Text>
-              </View>
-              <Text style={[styles.newsTitle, { color: colors.text }]}>
-                {news.title}
-              </Text>
-              <Text style={[styles.newsSummary, { color: colors.textSecondary }]}>
-                {news.summary}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
       </View>
 
       {/* Deposit Modal */}
@@ -709,11 +548,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  cashText: {
-    fontSize: 14,
-    fontWeight: '500',
-    opacity: 0.9,
-  },
   timeframeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -777,169 +611,6 @@ const styles = StyleSheet.create({
   quickActionDescription: {
     fontSize: 12,
     textAlign: 'center',
-  },
-  marketSection: {
-    paddingLeft: 24,
-    marginBottom: 32,
-  },
-  marketCards: {
-    flexDirection: 'row',
-    gap: 16,
-    paddingRight: 24,
-  },
-  marketCard: {
-    width: 160,
-    padding: 16,
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  marketCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  marketIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  marketInfo: {
-    flex: 1,
-  },
-  marketSymbol: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  marketName: {
-    fontSize: 12,
-  },
-  marketPrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  marketChange: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  marketChangeText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  activitySection: {
-    paddingHorizontal: 24,
-    marginBottom: 32,
-  },
-  activityCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  activityLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  activityIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  activityInfo: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  activityDate: {
-    fontSize: 12,
-  },
-  activityRight: {
-    alignItems: 'flex-end',
-  },
-  activityAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  newsSection: {
-    paddingHorizontal: 24,
-    marginBottom: 32,
-  },
-  newsCard: {
-    borderRadius: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    overflow: 'hidden',
-  },
-  newsImage: {
-    width: '100%',
-    height: 160,
-  },
-  newsContent: {
-    padding: 16,
-  },
-  newsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  newsTimestamp: {
-    fontSize: 12,
-  },
-  newsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    lineHeight: 22,
-  },
-  newsSummary: {
-    fontSize: 14,
-    lineHeight: 20,
   },
   bottomSpacing: {
     height: 40,

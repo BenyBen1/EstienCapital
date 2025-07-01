@@ -8,6 +8,8 @@ import { TransactionFilter } from '@/components/TransactionFilter';
 import { TransactionList } from '@/components/TransactionList';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { BASE_URL } from '@/services/config';
+import { apiFetch } from '@/services/apiFetch';
 
 type TransactionType = 'all' | 'deposit' | 'withdrawal' | 'buy' | 'sell';
 type TransactionStatus = 'all' | 'pending' | 'completed' | 'failed';
@@ -32,8 +34,6 @@ interface TransactionSummary {
   monthlyVolume: number;
 }
 
-const BASE_URL = 'http://192.168.0.175:5000';
-
 export default function TransactionsScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
@@ -54,7 +54,7 @@ export default function TransactionsScreen() {
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) throw new Error('No auth token found. Please log in again.');
-      const response = await fetch(`${BASE_URL}/api/transactions/history/${user.id}`, {
+      const response = await apiFetch(`${BASE_URL}/api/transactions/history/${user.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -98,11 +98,30 @@ export default function TransactionsScreen() {
   });
 
   // KYC check: Only allow access if KYC is approved
-  useEffect(() => {
-    if (user?.kycStatus !== 'approved') {
-      router.replace('/kyc');
-    }
-  }, [user?.kycStatus]);
+  if (user?.kycStatus !== 'approved') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 32 }}>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
+          You need to complete KYC to view your transactions.
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 16, marginBottom: 32, textAlign: 'center' }}>
+          For your security and compliance, please complete your KYC verification.
+        </Text>
+        <TouchableOpacity
+          style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8, marginBottom: 16 }}
+          onPress={() => router.push('/kyc')}
+        >
+          <Text style={{ color: colors.background, fontWeight: 'bold', fontSize: 16 }}>Start KYC</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ backgroundColor: colors.card, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8 }}
+          onPress={() => router.push('/')}
+        >
+          <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 16 }}>Back to Home</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -113,25 +132,6 @@ export default function TransactionsScreen() {
   }
 
   if (error === 'kyc_required') {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 32 }}>
-        <Text style={{ color: colors.text, fontSize: 20, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
-          You need to complete KYC to view your transactions.
-        </Text>
-        <Text style={{ color: colors.textSecondary, fontSize: 16, marginBottom: 32, textAlign: 'center' }}>
-          For your security and compliance, please complete your KYC verification.
-        </Text>
-        <TouchableOpacity
-          style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8 }}
-          onPress={() => router.push('/kyc')}
-        >
-          <Text style={{ color: colors.background, fontWeight: 'bold', fontSize: 16 }}>Start KYC</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (error) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <TransactionHeader

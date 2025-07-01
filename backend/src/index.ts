@@ -8,6 +8,8 @@ import transactionRoutes from './routes/transactions';
 import portfolioRoutes from './routes/portfolio';
 import goalsRoutes from './routes/goals';
 import profileRoutes from './routes/profile';
+import productRoutes from './routes/products';
+import memoRoutes from './routes/memos';
 import { logRequest, logError } from './middleware/logger';
 import { apiLimiter, authLimiter, uploadLimiter } from './middleware/rateLimit';
 import { requireAuth, requireKYC, requireAdmin } from './middleware/auth';
@@ -22,7 +24,7 @@ const port = process.env.PORT || 3000;
 // Initialize Supabase client
 export const supabase = createClient(
   process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
 // Middleware
@@ -37,6 +39,8 @@ app.use('/api/auth/', authLimiter);
 app.use('/api/upload/', uploadLimiter);
 
 // Routes
+app.use('/api/products', productRoutes);
+app.use('/api/memos', memoRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/kyc', requireAuth, kycRoutes);
 app.use('/api/transactions', requireAuth, requireKYC, transactionRoutes);
@@ -52,6 +56,12 @@ app.use('/api/admin', requireAuth, requireAdmin, (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Debug middleware to log all incoming requests
+app.use((req, res, next) => {
+  console.log('[DEBUG] Incoming request:', req.method, req.originalUrl, req.headers.authorization);
+  next();
 });
 
 // Error handling middleware

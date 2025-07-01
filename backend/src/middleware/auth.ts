@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { supabase } from '../config/supabase';
+import { supabaseAdmin } from '../config/supabase';
+import jwt from 'jsonwebtoken';
 
 // Extend Express Request type to include user
 declare global {
@@ -18,43 +19,53 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
+      console.error('No Authorization header or not Bearer');
       return res.status(401).json({ error: 'No token provided' });
     }
-
     const token = authHeader.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    console.log('Token received:', token);
 
-    if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
+    // Verify and decode the JWT token
+    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET!) as {
+      sub: string;
+      email?: string;
+      exp?: number;
+    };
 
-    // Get user profile from profiles table
-    const { data: profile, error: profileError } = await supabase
+    const userId = decoded.sub;
+    console.log('Decoded user ID:', userId);
+
+    // Fetch user profile using supabaseAdmin (bypasses RLS)
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('*')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
+    console.log('Profile lookup result:', { profile, profileError });
+
     if (profileError || !profile) {
+      console.error('User profile not found:', profileError);
       return res.status(401).json({ error: 'User profile not found' });
     }
 
-    // Attach user info to request
     req.user = {
-      id: user.id,
-      email: user.email!,
-      role: profile.role
+      id: userId,
+      email: decoded.email || profile.email || '',
+      role: profile.role,
     };
 
-    if (!req.user) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-    const userId = req.user.id;
-
+    console.log('User authenticated:', req.user);
     next();
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (err: any) {
+    console.error('Auth error:', err);
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Session expired. Please log in again.' });
+    }
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token format' });
+    }
+    return res.status(401).json({ error: 'Invalid or malformed token' });
   }
 };
 
@@ -71,13 +82,15 @@ export const requireKYC = async (req: Request, res: Response, next: NextFunction
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const { data: profile, error } = await supabase
+    // Use supabaseAdmin to bypass RLS and check KYC status
+    const { data: profile, error } = await supabaseAdmin
       .from('profiles')
       .select('kyc_status')
       .eq('id', req.user.id)
       .single();
 
     if (error || !profile) {
+      console.error('KYC status check error:', error);
       return res.status(500).json({ error: 'Error checking KYC status' });
     }
 

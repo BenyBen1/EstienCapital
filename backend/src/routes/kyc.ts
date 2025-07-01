@@ -1,14 +1,37 @@
 import { Router } from 'express';
-import { supabase } from '../index';
+import { supabaseAdmin } from '../config/supabase';
 import { sendEmail } from '../utils/email';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
+let sendAdminEmail = sendEmail;
+if (process.env.NODE_ENV !== 'production') {
+  sendAdminEmail = async (opts: any) => {
+    console.log('[MOCK EMAIL] Would send email to:', opts.to, '\nSubject:', opts.subject, '\nText:', opts.text);
+    // Return a dummy object to satisfy the type checker
+    return Promise.resolve({
+      accepted: [opts.to],
+      rejected: [],
+      envelopeTime: 0,
+      messageTime: 0,
+      messageSize: 0,
+      response: '250 OK: Message queued',
+      envelope: { from: opts.from || '', to: [opts.to] },
+      messageId: '<mocked>',
+      pending: []
+    });
+  };
+}
+
 // Submit KYC information
-router.post('/submit', async (req, res) => {
+router.post('/submit', requireAuth, async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
   try {
+    const userId = req.user.id;
     const {
-      userId,
       firstName,
       middleName,
       lastName,
@@ -27,6 +50,7 @@ router.post('/submit', async (req, res) => {
       postalCode,
       city,
       country,
+      countryOfResidency,
       nextOfKinFirstName,
       nextOfKinLastName,
       nextOfKinRelationship,
@@ -56,7 +80,7 @@ router.post('/submit', async (req, res) => {
     // Decode and upload ID Document
     const idDocDecoded = decodeBase64File(idDocument.base64);
     const idDocumentPath = `kyc/${userId}/id_document_${Date.now()}_${idDocument.fileName}`;
-    const { error: idDocError } = await supabase.storage
+    const { error: idDocError } = await supabaseAdmin.storage
       .from('documents')
       .upload(idDocumentPath, idDocDecoded.buffer, {
         contentType: idDocDecoded.contentType,
@@ -66,7 +90,7 @@ router.post('/submit', async (req, res) => {
     // Decode and upload Passport Photo
     const passportPhotoDecoded = decodeBase64File(passportPhoto.base64);
     const passportPhotoPath = `kyc/${userId}/passport_photo_${Date.now()}_${passportPhoto.fileName}`;
-    const { error: photoError } = await supabase.storage
+    const { error: photoError } = await supabaseAdmin.storage
       .from('documents')
       .upload(passportPhotoPath, passportPhotoDecoded.buffer, {
         contentType: passportPhotoDecoded.contentType,
@@ -74,11 +98,13 @@ router.post('/submit', async (req, res) => {
       });
 
     if (idDocError || photoError) {
+      console.error('ID Doc Upload Error:', idDocError);
+      console.error('Passport Photo Upload Error:', photoError);
       throw new Error('Failed to upload documents');
     }
 
     // Store KYC information
-    const { error: kycError } = await supabase.from('kyc_submissions').insert([
+    const { error: kycError } = await supabaseAdmin.from('kyc_submissions').insert([
       {
         user_id: userId,
         first_name: firstName,
@@ -98,7 +124,7 @@ router.post('/submit', async (req, res) => {
         postal_address: postalAddress,
         postal_code: postalCode,
         city,
-        country,
+        country: country || countryOfResidency,
         next_of_kin_first_name: nextOfKinFirstName,
         next_of_kin_last_name: nextOfKinLastName,
         next_of_kin_relationship: nextOfKinRelationship,
@@ -111,7 +137,7 @@ router.post('/submit', async (req, res) => {
     if (kycError) throw kycError;
 
     // Update user profile KYC status
-    const { error: profileError } = await supabase
+    const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ kyc_status: 'pending' })
       .eq('id', userId);
@@ -119,7 +145,7 @@ router.post('/submit', async (req, res) => {
     if (profileError) throw profileError;
 
     // Notify admin
-    await sendEmail({
+    await sendAdminEmail({
       to: process.env.ADMIN_EMAIL || '',
       subject: 'New KYC Submission',
       text: `A new KYC submission has been received from user ${userId}. Please review the submission.`,
@@ -136,7 +162,7 @@ router.get('/status/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('kyc_submissions')
       .select('status, rejection_reason')
       .eq('user_id', userId)
@@ -158,7 +184,7 @@ router.put('/update-status/:submissionId', async (req, res) => {
     const { submissionId } = req.params;
     const { status, rejectionReason } = req.body;
 
-    const { data: submission, error: submissionError } = await supabase
+    const { data: submission, error: submissionError } = await supabaseAdmin
       .from('kyc_submissions')
       .update({
         status,
@@ -172,7 +198,7 @@ router.put('/update-status/:submissionId', async (req, res) => {
     if (submissionError) throw submissionError;
 
     // Update user profile KYC status
-    const { error: profileError } = await supabase
+    const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ kyc_status: status })
       .eq('id', submission.user_id);
@@ -180,7 +206,7 @@ router.put('/update-status/:submissionId', async (req, res) => {
     if (profileError) throw profileError;
 
     // Notify user
-    const { data: user } = await supabase
+    const { data: user } = await supabaseAdmin
       .from('profiles')
       .select('email')
       .eq('id', submission.user_id)

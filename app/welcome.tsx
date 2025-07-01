@@ -36,12 +36,10 @@ export default function WelcomeScreen() {
         </View>
         <View style={styles.overlayBox}>
           <View style={styles.welcomeContent}>
-            <Text style={[styles.welcomeTitle, { color: colors.text, textShadowColor: '#0002', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 }]}
-              numberOfLines={2} ellipsizeMode="tail">
+            <Text style={[styles.welcomeTitle, { color: '#000' }]}>
               Welcome to Estien Capital
             </Text>
-            <Text style={[styles.welcomeSubtitle, { color: colors.primary, textShadowColor: '#0002', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 2 }]}
-              numberOfLines={2} ellipsizeMode="tail">
+            <Text style={[styles.welcomeSubtitle, { color: colors.primary }]}>
               Professional Digital Asset Investment Platform
             </Text>
             <Text style={[styles.welcomeDescription, { color: colors.textSecondary, textShadowColor: '#0001', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 2 }]}
@@ -108,14 +106,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   welcomeTitle: {
-    fontSize: 36,
-    fontWeight: '900',
+    fontSize: 28,
+    fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 18,
-    letterSpacing: 0.5,
+    marginBottom: 16,
   },
   welcomeSubtitle: {
-    fontSize: 22,
+    fontSize: 18,
     textAlign: 'center',
     marginBottom: 18,
     fontWeight: '700',

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../index';
 import { sendEmail } from '../utils/email';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
@@ -192,4 +193,39 @@ router.put('/update-status/:transactionId', async (req, res) => {
   }
 });
 
-export default router; 
+// Admin: Get all deposit and withdrawal requests
+router.get('/admin/transactions', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { type, status, startDate, endDate, page = 1, limit = 20 } = req.query;
+
+    let query = supabase
+      .from('transactions')
+      .select('*', { count: 'exact' })
+      .in('type', ['deposit', 'withdrawal'])
+      .order('created_at', { ascending: false });
+
+    if (type) query = query.eq('type', type);
+    if (status) query = query.eq('status', status);
+    if (startDate) query = query.gte('created_at', startDate);
+    if (endDate) query = query.lte('created_at', endDate);
+
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 20;
+
+    const { data, error, count } = await query
+      .range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
+
+    if (error) throw error;
+
+    res.json({
+      transactions: data,
+      total: count,
+      page: pageNum,
+      totalPages: Math.ceil((count ?? 0) / limitNum),
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+export default router;

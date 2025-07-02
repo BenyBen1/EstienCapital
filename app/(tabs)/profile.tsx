@@ -54,7 +54,7 @@ export default function ProfileScreen() {
 
   const BASE_URL = 'http://192.168.0.175:5000';
 
-  // Fetch stats from backend
+  // Fetch stats from backend and cache name
   const fetchStats = async () => {
     if (!user?.id) return;
     setStatsLoading(true);
@@ -62,13 +62,18 @@ export default function ProfileScreen() {
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) throw new Error('No auth token found. Please log in again.');
-      // Fetch wallet
+      // Fetch wallet/profile
       const walletRes = await fetch(`${BASE_URL}/api/profile/${user.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
       const walletData = await walletRes.json();
+      console.log('DEBUG: Profile API response:', walletData);
+      // Cache name locally
+      if (walletData?.first_name && walletData?.last_name) {
+        await AsyncStorage.setItem('cached_name', JSON.stringify({ firstName: walletData.first_name, lastName: walletData.last_name }));
+      }
       // Fetch investments
       const invRes = await fetch(`${BASE_URL}/api/portfolio`, {
         headers: {
@@ -84,6 +89,7 @@ export default function ProfileScreen() {
       });
       const goalsData = await goalsRes.json();
       setStats({
+        ...walletData,
         balance: walletData?.balance || 0,
         invested: Array.isArray(invData) ? invData.reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0) : 0,
         goals: Array.isArray(goalsData) ? goalsData.length : 0,
@@ -92,6 +98,12 @@ export default function ProfileScreen() {
       setStatsError(err.message || 'Error fetching stats');
     } finally {
       setStatsLoading(false);
+    }
+    // Try to load cached name for fast UI
+    const cached = await AsyncStorage.getItem('cached_name');
+    if (cached) {
+      const { firstName, lastName } = JSON.parse(cached);
+      setStats((prev: any) => ({ ...prev, first_name: firstName, last_name: lastName }));
     }
   };
 
@@ -321,7 +333,11 @@ export default function ProfileScreen() {
       >
         {/* User Profile Card */}
         <ProfileCard
-          user={user || {}}
+          user={{
+            ...user,
+            firstName: stats?.first_name ?? user?.firstName ?? '',
+            lastName: stats?.last_name ?? user?.lastName ?? '',
+          }}
           kycStatus={kycStatus}
           getKycStatusColor={getKycStatusColor}
           getKycStatusText={getKycStatusText}

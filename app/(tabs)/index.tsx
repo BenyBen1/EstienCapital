@@ -22,6 +22,7 @@ import WithdrawModal from '@/components/WithdrawModal';
 import DepositInstructionsModal from '@/components/DepositInstructionsModal';
 import { BASE_URL } from '@/services/config';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -193,23 +194,31 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    if (user?.id) {
-      // Fetch profile
-      fetch(`${BASE_URL}/api/profile/${user.id}`)
-        .then(res => res.json())
-        .then(data => setProfile(data))
-        .catch(() => setProfile(null));
-      // Fetch KYC status
-      fetch(`${BASE_URL}/api/kyc/status/${user.id}`)
-        .then(res => res.json())
-        .then(data => setKycStatus(data?.status || ''))
-        .catch(() => setKycStatus(''));
-      // Fetch wallet balance (if you add a wallet endpoint)
-      fetch(`${BASE_URL}/api/wallet/${user.id}`)
-        .then(res => res.json())
-        .then(data => setBalance(data?.balance ?? null))
-        .catch(() => setBalance(null));
-    }
+    const fetchAndCacheProfile = async () => {
+      if (user?.id) {
+        try {
+          const res = await fetch(`${BASE_URL}/api/profile/${user.id}`);
+          const data = await res.json();
+          console.log('DEBUG: Profile API response:', data);
+          setProfile(data);
+          // Cache name locally
+          if (data?.first_name && data?.last_name) {
+            await AsyncStorage.setItem('cached_name', JSON.stringify({ firstName: data.first_name, lastName: data.last_name }));
+          }
+        } catch (e) {
+          setProfile(null);
+        }
+      } else {
+        setProfile(null);
+      }
+      // Try to load cached name for fast UI
+      const cached = await AsyncStorage.getItem('cached_name');
+      if (cached) {
+        const { firstName, lastName } = JSON.parse(cached);
+        setProfile((prev: any) => ({ ...prev, first_name: firstName, last_name: lastName }));
+      }
+    };
+    fetchAndCacheProfile();
   }, [user?.id]);
 
   useEffect(() => {
@@ -242,8 +251,8 @@ export default function HomeScreen() {
             <Text style={[styles.greeting, { color: colors.textSecondary }]}>
               {getGreeting()}
             </Text>
-            <Text style={[styles.username, { color: colors.text }]}>
-              {profile?.first_name || user?.firstName || 'John'}
+            <Text style={[styles.username, { color: colors.text }]}> 
+              {(profile?.first_name ?? user?.firstName ?? 'User') + ' ' + (profile?.last_name ?? user?.lastName ?? '')}
             </Text>
           </View>
           <View style={styles.headerRight}>
@@ -254,8 +263,8 @@ export default function HomeScreen() {
               <Bell size={20} color={colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity style={[styles.profileButton, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.profileText, { color: colors.background }]}>
-                {user?.firstName?.charAt(0) || 'J'}
+              <Text style={[styles.profileText, { color: colors.background }]}> 
+                {(profile?.first_name?.charAt(0) ?? user?.firstName?.charAt(0) ?? 'U')}
               </Text>
             </TouchableOpacity>
           </View>

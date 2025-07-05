@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import JointAccountHolderForm from '@/components/profile/JointAccountHolderForm';
 
 type AccountType = 'individual' | 'joint';
 
@@ -32,9 +33,17 @@ export default function SignupScreen() {
     confirmPassword: '',
     accountType: 'individual' as AccountType,
   });
+  const [jointHolder, setJointHolder] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [jointErrors, setJointErrors] = useState<Record<string, string>>({});
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -67,9 +76,22 @@ export default function SignupScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const validateJointHolder = () => {
+    const newErrors: Record<string, string> = {};
+    if (!jointHolder.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!jointHolder.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!jointHolder.email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(jointHolder.email)) newErrors.email = 'Please enter a valid email address';
+    if (!jointHolder.password) newErrors.password = 'Password is required';
+    else if (jointHolder.password.length < 8) newErrors.password = 'Password must be at least 8 characters long';
+    if (jointHolder.password !== jointHolder.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    setJointErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSignup = async () => {
     if (!validateForm()) return;
-
+    if (formData.accountType === 'joint' && !validateJointHolder()) return;
     try {
       await register({
         firstName: formData.firstName.trim(),
@@ -77,6 +99,12 @@ export default function SignupScreen() {
         email: formData.email.trim(),
         password: formData.password,
         accountType: formData.accountType,
+        jointHolder: formData.accountType === 'joint' ? {
+          firstName: jointHolder.firstName.trim(),
+          lastName: jointHolder.lastName.trim(),
+          email: jointHolder.email.trim(),
+          password: jointHolder.password,
+        } : undefined,
       });
       
       Alert.alert(
@@ -276,6 +304,16 @@ export default function SignupScreen() {
                 </TouchableOpacity>
               }
             />
+
+            {formData.accountType === 'joint' && (
+              <JointAccountHolderForm
+                prefix="Second"
+                values={jointHolder}
+                errors={jointErrors}
+                onChange={(field, value) => setJointHolder(prev => ({ ...prev, [field]: value }))}
+                colors={colors}
+              />
+            )}
 
             <Button
               title="Create Account"

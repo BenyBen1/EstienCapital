@@ -9,6 +9,7 @@ import {
   Switch,
   Image,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { User as UserIcon, Settings, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, ChevronRight, Phone, MessageCircle, Mail, CreditCard as Edit, Camera, Bell, Lock, Globe, Download, Star, Award, TrendingUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -46,6 +47,9 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [kycStatus] = useState<'pending' | 'approved' | 'rejected'>('approved');
   const [refreshing, setRefreshing] = useState(false);
+  const [kycInfo, setKycInfo] = useState<any>(null);
+  const [showKycModal, setShowKycModal] = useState(false);
+  const [kycLoading, setKycLoading] = useState(false);
 
   // Real stats state
   const [stats, setStats] = useState<any>({ balance: 0, invested: 0, goals: 0 });
@@ -61,7 +65,12 @@ export default function ProfileScreen() {
     setStatsError(null);
     try {
       const token = await AsyncStorage.getItem('auth_token');
-      if (!token) throw new Error('No auth token found. Please log in again.');
+      if (!token) {
+        Alert.alert('Session expired', 'Please log in again.');
+        await logout();
+        router.replace('/auth/login');
+        return;
+      }
       // Fetch wallet/profile
       const walletRes = await fetch(`${BASE_URL}/api/profile/${user.id}`, {
         headers: {
@@ -69,7 +78,12 @@ export default function ProfileScreen() {
         },
       });
       const walletData = await walletRes.json();
-      console.log('DEBUG: Profile API response:', walletData);
+      if (walletData?.error && (walletData.error.includes('token') || walletData.error.includes('Session expired'))) {
+        Alert.alert('Session expired', 'Please log in again.');
+        await logout();
+        router.replace('/auth/login');
+        return;
+      }
       // Cache name locally
       if (walletData?.first_name && walletData?.last_name) {
         await AsyncStorage.setItem('cached_name', JSON.stringify({ firstName: walletData.first_name, lastName: walletData.last_name }));
@@ -180,6 +194,32 @@ export default function ProfileScreen() {
     }
   };
 
+  const fetchKycInfo = async () => {
+    if (kycInfo) {
+      setShowKycModal(true);
+      return;
+    }
+    if (!user || !user.id) {
+      Alert.alert('Error', 'User not found. Please log in again.');
+      return;
+    }
+    setKycLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) throw new Error('No auth token found. Please log in again.');
+      const res = await fetch(`${BASE_URL}/api/kyc/status/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setKycInfo(data);
+      setShowKycModal(true);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to fetch KYC info');
+    } finally {
+      setKycLoading(false);
+    }
+  };
+
   const profileSections = [
     {
       title: 'Account Management',
@@ -188,8 +228,8 @@ export default function ProfileScreen() {
           id: 'personal-info',
           icon: UserIcon,
           title: 'Personal Information',
-          subtitle: 'Update your personal details',
-          onPress: () => Alert.alert('Info', 'Personal information management coming soon'),
+          subtitle: 'View your KYC details',
+          onPress: fetchKycInfo,
         },
         {
           id: 'kyc-status',
@@ -212,7 +252,6 @@ export default function ProfileScreen() {
           icon: Lock,
           title: 'Security Settings',
           subtitle: 'Password, 2FA, and security',
-          onPress: () => Alert.alert('Info', 'Security settings coming soon'),
         },
       ],
     },
@@ -403,6 +442,46 @@ export default function ProfileScreen() {
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* KYC Info Modal */}
+      <Modal
+        visible={showKycModal}
+        animationType="slide"
+        onRequestClose={() => setShowKycModal(false)}
+        transparent={true}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '90%', maxHeight: '90%', backgroundColor: colors.card, borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text, marginBottom: 12 }}>Personal Information</Text>
+            {kycLoading ? (
+              <Text style={{ color: colors.textSecondary }}>Loading...</Text>
+            ) : kycInfo ? (
+              <ScrollView style={{ maxHeight: 400 }}>
+                {/* Example fields, adjust as needed to match review.tsx */}
+                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Name:</Text>
+                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.first_name} {kycInfo.middle_name} {kycInfo.last_name}</Text>
+                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Gender:</Text>
+                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.gender}</Text>
+                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Email:</Text>
+                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.email}</Text>
+                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Phone:</Text>
+                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.phone_number}</Text>
+                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Date of Birth:</Text>
+                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.date_of_birth}</Text>
+                {/* Add more fields as needed, styled like review screen */}
+              </ScrollView>
+            ) : (
+              <Text style={{ color: colors.error }}>No KYC info found.</Text>
+            )}
+            <TouchableOpacity
+              style={{ marginTop: 20, alignSelf: 'center', backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24 }}
+              onPress={() => setShowKycModal(false)}
+            >
+              <Text style={{ color: colors.background, fontWeight: 'bold' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

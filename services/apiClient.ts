@@ -22,12 +22,20 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface JointAccountHolder {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}
+
 export interface RegisterRequest {
   email: string;
   password: string;
   firstName: string;
   lastName: string;
   accountType: 'individual' | 'joint';
+  jointHolder?: JointAccountHolder;
 }
 
 export interface Portfolio {
@@ -67,11 +75,23 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const res = await apiFetch(endpoint, options);
+    const contentType = res.headers.get('content-type') || '';
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
+      let errorData: any = {};
+      if (contentType.includes('application/json')) {
+        errorData = await res.json().catch(() => ({}));
+      } else {
+        errorData = { message: await res.text() };
+      }
       throw new Error(errorData.message || errorData.error || `HTTP ${res.status}`);
     }
-    return await res.json();
+    if (contentType.includes('application/json')) {
+      return await res.json();
+    } else {
+      // Not JSON, return as text or throw
+      const text = await res.text();
+      throw new Error(`Unexpected response format: ${text.substring(0, 100)}`);
+    }
   }
 
   // Auth

@@ -13,6 +13,7 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, Minus, TrendingUp, Eye, EyeOff, ArrowUpRight, ArrowDownLeft, Target, Settings, Bell, Search, MoveHorizontal as MoreHorizontal, DollarSign, ChartPie as PieChart, Activity, Zap } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -237,176 +238,170 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Text style={[styles.greeting, { color: colors.textSecondary }]}>
-              {getGreeting()}
-            </Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* Fixed Header */}
+      <View style={[styles.header, { backgroundColor: colors.surface, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, elevation: 10 }]}> 
+        <View style={styles.headerContent}> 
+          <View style={styles.headerLeft}> 
+            <Text style={[styles.greeting, { color: colors.textSecondary }]}> 
+              {getGreeting()} 
+            </Text> 
             <Text style={[styles.username, { color: colors.text }]}> 
-              {(profile?.first_name ?? user?.firstName ?? 'User') + ' ' + (profile?.last_name ?? user?.lastName ?? '')}
-            </Text>
-          </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
-              <Search size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
-              <Bell size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.profileButton, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.profileText, { color: colors.background }]}> 
-                {(profile?.first_name?.charAt(0) ?? user?.firstName?.charAt(0) ?? 'U')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+              {(profile?.first_name ?? user?.firstName ?? 'User') + ' ' + (profile?.last_name ?? user?.lastName ?? '')} 
+            </Text> 
+          </View> 
+          <TouchableOpacity style={[styles.profileButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/profile')}> 
+            <Text style={[styles.profileText, { color: colors.background }]}> 
+              {(profile?.first_name?.charAt(0) ?? user?.firstName?.charAt(0) ?? 'U')} 
+            </Text> 
+          </TouchableOpacity> 
+        </View> 
       </View>
-
-      {/* Portfolio Overview */}
-      <View style={styles.portfolioSection}>
-        <LinearGradient
-          colors={[colors.primary, '#FFA500']}
-          style={styles.portfolioCard}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.portfolioHeader}>
-            <View>
-              <Text style={[styles.portfolioTitle, { color: colors.background }]}>
-                Total Portfolio Value
-              </Text>
-              <Text style={[styles.portfolioValue, { color: colors.background }]}>
-                {hideBalance ? '••••••••' : `KES ${(balance ?? 0).toLocaleString()}`}
-              </Text>
+      <ScrollView
+        style={{ flex: 1, paddingTop: 100 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Portfolio Overview */}
+        <View style={styles.portfolioSection}>
+          <LinearGradient
+            colors={[colors.primary, '#FFA500']}
+            style={styles.portfolioCard}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.portfolioHeader}>
+              <View>
+                <Text style={[styles.portfolioTitle, { color: colors.background }]}>
+                  Total Portfolio Value
+                </Text>
+                <Text style={[styles.portfolioValue, { color: colors.background }]}>
+                  {hideBalance ? '••••••••' : `KES ${(balance ?? 0).toLocaleString()}`}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setHideBalance(!hideBalance)}>
+                {hideBalance ? (
+                  <EyeOff size={24} color={colors.background} />
+                ) : (
+                  <Eye size={24} color={colors.background} />
+                )}
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => setHideBalance(!hideBalance)}>
-              {hideBalance ? (
-                <EyeOff size={24} color={colors.background} />
-              ) : (
-                <Eye size={24} color={colors.background} />
-              )}
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.portfolioStats}>
-            <View style={styles.portfolioStat}>
-              <TrendingUp size={16} color={colors.background} />
-              <Text style={[styles.gainText, { color: colors.background }]}>
-                +KES {totalGain.toLocaleString()}
-              </Text>
+            
+            <View style={styles.portfolioStats}>
+              <View style={styles.portfolioStat}>
+                <TrendingUp size={16} color={colors.background} />
+                <Text style={[styles.gainText, { color: colors.background }]}>
+                  +KES {totalGain.toLocaleString()}
+                </Text>
+              </View>
             </View>
-          </View>
 
-          {/* Timeframe Selector */}
-          <View style={styles.timeframeContainer}>
-            {timeframes.map((timeframe) => (
-              <TouchableOpacity
-                key={timeframe}
-                style={[
-                  styles.timeframeButton,
-                  {
-                    backgroundColor: selectedTimeframe === timeframe 
-                      ? colors.background + '30' 
-                      : 'transparent',
-                  },
-                ]}
-                onPress={() => setSelectedTimeframe(timeframe)}
-              >
-                <Text
+            {/* Timeframe Selector */}
+            <View style={styles.timeframeContainer}>
+              {timeframes.map((timeframe) => (
+                <TouchableOpacity
+                  key={timeframe}
                   style={[
-                    styles.timeframeText,
+                    styles.timeframeButton,
                     {
-                      color: colors.background,
-                      fontWeight: selectedTimeframe === timeframe ? 'bold' : 'normal',
+                      backgroundColor: selectedTimeframe === timeframe 
+                        ? colors.background + '30' 
+                        : 'transparent',
                     },
                   ]}
+                  onPress={() => setSelectedTimeframe(timeframe)}
                 >
-                  {timeframe}
+                  <Text
+                    style={[
+                      styles.timeframeText,
+                      {
+                        color: colors.background,
+                        fontWeight: selectedTimeframe === timeframe ? 'bold' : 'normal',
+                      },
+                    ]}
+                  >
+                    {timeframe}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </LinearGradient>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsSection}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Quick Actions
+          </Text>
+          <View style={styles.quickActionsGrid}>
+            {quickActions.map((action) => (
+              <TouchableOpacity
+                key={action.id}
+                style={[styles.quickActionCard, { backgroundColor: colors.card }]}
+                activeOpacity={0.7}
+                onPress={action.onPress}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
+                  <action.icon size={24} color={action.color} />
+                </View>
+                <Text style={[styles.quickActionText, { color: colors.text }]}>
+                  {action.title}
+                </Text>
+                <Text style={[styles.quickActionDescription, { color: colors.textSecondary }]}>
+                  {action.description}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
-        </LinearGradient>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.quickActionsSection}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Quick Actions
-        </Text>
-        <View style={styles.quickActionsGrid}>
-          {quickActions.map((action) => (
-            <TouchableOpacity
-              key={action.id}
-              style={[styles.quickActionCard, { backgroundColor: colors.card }]}
-              activeOpacity={0.7}
-              onPress={action.onPress}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
-                <action.icon size={24} color={action.color} />
-              </View>
-              <Text style={[styles.quickActionText, { color: colors.text }]}>
-                {action.title}
-              </Text>
-              <Text style={[styles.quickActionDescription, { color: colors.textSecondary }]}>
-                {action.description}
-              </Text>
-            </TouchableOpacity>
-          ))}
         </View>
-      </View>
 
-      {/* Deposit Modal */}
-      <DepositModal
-        visible={showDepositModal}
-        onClose={() => setShowDepositModal(false)}
-        amount={depositAmount}
-        setAmount={setDepositAmount}
-        onGetInstructions={handleDepositInstructions}
-        colors={colors}
-      />
+        {/* Deposit Modal */}
+        <DepositModal
+          visible={showDepositModal}
+          onClose={() => setShowDepositModal(false)}
+          amount={depositAmount}
+          setAmount={setDepositAmount}
+          onGetInstructions={handleDepositInstructions}
+          colors={colors}
+        />
 
-      {/* Withdraw Modal */}
-      <WithdrawModal
-        visible={showWithdrawModal}
-        onClose={() => setShowWithdrawModal(false)}
-        amount={withdrawAmount}
-        setAmount={setWithdrawAmount}
-        availableBalance={availableCash}
-        paymentMethods={paymentMethods}
-        selectedPaymentMethod={selectedPaymentMethod}
-        setSelectedPaymentMethod={setSelectedPaymentMethod}
-        onWithdraw={handleWithdraw}
-        colors={colors}
-      />
+        {/* Withdraw Modal */}
+        <WithdrawModal
+          visible={showWithdrawModal}
+          onClose={() => setShowWithdrawModal(false)}
+          amount={withdrawAmount}
+          setAmount={setWithdrawAmount}
+          availableBalance={availableCash}
+          paymentMethods={paymentMethods}
+          selectedPaymentMethod={selectedPaymentMethod}
+          setSelectedPaymentMethod={setSelectedPaymentMethod}
+          onWithdraw={handleWithdraw}
+          colors={colors}
+        />
 
-      {/* Deposit Instructions Modal */}
-      <DepositInstructionsModal
-        visible={showDepositInstructionsModal}
-        onClose={() => setShowDepositInstructionsModal(false)}
-        amount={depositAmount}
-        bankDetails={bankDetails}
-        copiedField={copiedField}
-        onCopy={(val, field) => {
-          // TODO: Implement copy functionality
-          setCopiedField(field);
-          console.log('Copied:', val);
-        }}
-        onConfirm={handleDepositConfirmation}
-        colors={colors}
-      />
+        {/* Deposit Instructions Modal */}
+        <DepositInstructionsModal
+          visible={showDepositInstructionsModal}
+          onClose={() => setShowDepositInstructionsModal(false)}
+          amount={depositAmount}
+          bankDetails={bankDetails}
+          copiedField={copiedField}
+          onCopy={(val, field) => {
+            // TODO: Implement copy functionality
+            setCopiedField(field);
+            console.log('Copied:', val);
+          }}
+          onConfirm={handleDepositConfirmation}
+          colors={colors}
+        />
 
-      <View style={styles.bottomSpacing} />
-    </ScrollView>
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </SafeAreaView>
   );
 
   function getActivityColor(type: string) {

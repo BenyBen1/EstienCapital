@@ -128,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           refresh_token: data.session.refresh_token,
         });
       }
+      await AsyncStorage.removeItem('cached_name');
       // Save token and user
       await AsyncStorage.setItem(TOKEN_KEY, data.session?.access_token || '');
       await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.session?.refresh_token || '');
@@ -217,6 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Ignore backend logout errors
         console.warn('Backend logout failed:', err);
       }
+      await AsyncStorage.removeItem('cached_name');
       await clearAuthData();
     } catch (error) {
       console.error('Logout failed:', error);

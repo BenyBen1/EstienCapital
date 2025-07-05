@@ -10,83 +10,65 @@ const router = Router();
 router.post('/register', async (req, res) => {
   console.log('POST /register - body:', req.body);
   try {
-    const { email, password, firstName, lastName, accountType } = req.body;
+    const { email, password, firstName, lastName, accountType, jointHolder } = req.body;
 
-    // Add registration_time to user_metadata
-    const registrationTime = new Date().toISOString();
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          firstName,
-          lastName,
-          accountType,
-          registration_time: registrationTime
+    // Helper to register a single user
+    async function registerUser({ email, password, firstName, lastName, accountType }: any) {
+      const registrationTime = new Date().toISOString();
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            firstName,
+            lastName,
+            accountType,
+            registration_time: registrationTime
+          }
         }
-      }
-    });
-    console.log('Supabase Auth signUp:', { authData, authError });
-
-    if (authError) {
-      return res.status(400).json({ error: authError.message, details: authError });
-    }
-
-    if (!authData.user) {
-      return res.status(400).json({ error: 'User creation failed' });
-    }
-
-    // No need to insert into profiles table here; handled by DB trigger
-    // Continue with wallet, notification preferences, security settings, etc.
-
-    // Create wallet for user
-    const { error: walletError } = await supabase
-      .from('wallets')
-      .insert({
-        user_id: authData.user.id,
-        balance: 0,
-        currency: 'KES',
       });
-    if (walletError) {
-      console.error('Wallet creation failed:', walletError);
+      if (authError) return { error: authError };
+      if (!authData.user) return { error: { message: 'User creation failed' } };
+      // Create wallet, notification preferences, security settings (same as before)
+      await supabase.from('wallets').insert({ user_id: authData.user.id, balance: 0, currency: 'KES' });
+      await supabase.from('notification_preferences').insert({ user_id: authData.user.id, email_notifications: true, sms_notifications: true, push_notifications: true });
+      await supabase.from('security_settings').insert({ user_id: authData.user.id, two_factor_enabled: false, last_password_change: new Date().toISOString() });
+      return { user: authData.user };
     }
 
-    // Create default notification preferences
-    const { error: notificationError } = await supabase
-      .from('notification_preferences')
-      .insert({
-        user_id: authData.user.id,
-        email_notifications: true,
-        sms_notifications: true,
-        push_notifications: true,
+    if (accountType === 'joint' && jointHolder) {
+      // Register primary user
+      const primary = await registerUser({ email, password, firstName, lastName, accountType });
+      if (primary.error) return res.status(400).json({ error: primary.error.message || 'Primary user registration failed' });
+      // Register joint holder
+      const secondary = await registerUser({
+        email: jointHolder.email,
+        password: jointHolder.password,
+        firstName: jointHolder.firstName,
+        lastName: jointHolder.lastName,
+        accountType: 'joint',
       });
-    if (notificationError) {
-      console.error('Notification preferences creation failed:', notificationError);
-    }
-
-    // Create default security settings
-    const { error: securityError } = await supabase
-      .from('security_settings')
-      .insert({
-        user_id: authData.user.id,
-        two_factor_enabled: false,
-        last_password_change: new Date().toISOString(),
+      if (secondary.error) return res.status(400).json({ error: secondary.error.message || 'Joint holder registration failed' });
+      // Link users as a joint account (e.g., create a joint_accounts table, or add a reference field)
+      // For now, just return both users
+      return res.status(200).json({
+        message: 'Joint account registration initiated. Please check both emails to confirm accounts.',
+        requiresEmailConfirmation: true,
+        users: [
+          { id: primary.user.id, email: primary.user.email },
+          { id: secondary.user.id, email: secondary.user.email },
+        ]
       });
-    if (securityError) {
-      console.error('Security settings creation failed:', securityError);
+    } else {
+      // Individual account (original logic)
+      const single = await registerUser({ email, password, firstName, lastName, accountType });
+      if (single.error) return res.status(400).json({ error: single.error.message || 'Registration failed' });
+      return res.status(200).json({
+        message: 'Registration initiated. Please check your email to confirm your account.',
+        requiresEmailConfirmation: true,
+        user: { id: single.user.id, email: single.user.email }
+      });
     }
-
-    // Always return success with email confirmation message
-    console.log('POST /register - success:', authData);
-    return res.status(200).json({
-      message: 'Registration initiated. Please check your email to confirm your account.',
-      requiresEmailConfirmation: true,
-      user: {
-        id: authData.user.id,
-        email: authData.user.email,
-      }
-    });
-
   } catch (error) {
     console.error('POST /register - error:', error);
     res.status(500).json({ error: 'Internal server error', details: error });
@@ -425,4 +407,4 @@ router.post('/verify-2fa', requireAuth, async (req, res) => {
   }
 });
 
-export default router; 
+export default router;

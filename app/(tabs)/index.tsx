@@ -259,7 +259,7 @@ export default function HomeScreen() {
       </View>
       <ScrollView
         style={{ flex: 1, paddingTop: 100 }}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }} // add paddingBottom for tab bar
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -511,31 +511,33 @@ const styles = StyleSheet.create({
   },
   portfolioSection: {
     paddingHorizontal: 24,
-    marginBottom: 32,
+    marginBottom: 24,
+    marginTop: 32, // increased from 8 for more space above the card
   },
   portfolioCard: {
-    padding: 24,
-    borderRadius: 20,
-    elevation: 8,
+    padding: 14, // was 24
+    borderRadius: 16, // was 20
+    elevation: 6, // was 8
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, // was 4
+    shadowOpacity: 0.12, // was 0.15
+    shadowRadius: 6, // was 8
+    minHeight: 120, // add a minHeight to keep it compact
   },
   portfolioHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 10, // was 16
   },
   portfolioTitle: {
-    fontSize: 16,
+    fontSize: 14, // was 16
     fontWeight: '500',
-    marginBottom: 8,
+    marginBottom: 6, // was 8
     opacity: 0.9,
   },
   portfolioValue: {
-    fontSize: 36,
+    fontSize: 28, // was 36
     fontWeight: 'bold',
   },
   portfolioStats: {

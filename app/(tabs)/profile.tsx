@@ -6,20 +6,16 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
-  Image,
   RefreshControl,
-  Modal,
 } from 'react-native';
-import { User as UserIcon, Settings, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, ChevronRight, Phone, MessageCircle, Mail, CreditCard as Edit, Camera, Bell, Lock, Globe, Download, Star, Award, TrendingUp } from 'lucide-react-native';
+import { User as UserIcon, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, Phone, MessageCircle, Mail, Bell, Lock, Globe, Star, Award, TrendingUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { LucideIcon } from 'lucide-react-native';
-import type { User } from '@/types/env';
 import ProfileCard from '@/components/profile/ProfileCard';
 import SettingsList from '@/components/profile/SettingsList';
+import { apiFetch } from '@/services/apiFetch';
 
 interface ProfileStat {
   label: string;
@@ -48,35 +44,18 @@ export default function ProfileScreen() {
   const [kycStatus] = useState<'pending' | 'approved' | 'rejected'>('approved');
   const [refreshing, setRefreshing] = useState(false);
   const [kycInfo, setKycInfo] = useState<any>(null);
-  const [showKycModal, setShowKycModal] = useState(false);
-  const [kycLoading, setKycLoading] = useState(false);
 
   // Real stats state
   const [stats, setStats] = useState<any>({ balance: 0, invested: 0, goals: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
-  const [statsError, setStatsError] = useState<string | null>(null);
-
-  const BASE_URL = 'http://192.168.0.175:5000';
 
   // Fetch stats from backend and cache name
   const fetchStats = async () => {
     if (!user?.id) return;
     setStatsLoading(true);
-    setStatsError(null);
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        Alert.alert('Session expired', 'Please log in again.');
-        await logout();
-        router.replace('/auth/login');
-        return;
-      }
-      // Fetch wallet/profile
-      const walletRes = await fetch(`${BASE_URL}/api/profile/${user.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      // Use apiFetch for token freshness
+      const walletRes = await apiFetch(`/api/profile/${user.id}`);
       const walletData = await walletRes.json();
       if (walletData?.error && (walletData.error.includes('token') || walletData.error.includes('Session expired'))) {
         Alert.alert('Session expired', 'Please log in again.');
@@ -84,40 +63,21 @@ export default function ProfileScreen() {
         router.replace('/auth/login');
         return;
       }
-      // Cache name locally
-      if (walletData?.first_name && walletData?.last_name) {
-        await AsyncStorage.setItem('cached_name', JSON.stringify({ firstName: walletData.first_name, lastName: walletData.last_name }));
-      }
-      // Fetch investments
-      const invRes = await fetch(`${BASE_URL}/api/portfolio`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      // Do NOT cache name locally, always use live data
+      const invRes = await apiFetch('/api/portfolio');
       const invData = await invRes.json();
-      // Fetch goals
-      const goalsRes = await fetch(`${BASE_URL}/api/goals`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const goalsRes = await apiFetch('/api/goals');
       const goalsData = await goalsRes.json();
       setStats({
         ...walletData,
-        balance: walletData?.balance || 0,
-        invested: Array.isArray(invData) ? invData.reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0) : 0,
+        balance: walletData?.balance ?? 0,
+        invested: Array.isArray(invData) ? invData.reduce((sum: number, inv: any) => sum + (inv.amount ?? 0), 0) : 0,
         goals: Array.isArray(goalsData) ? goalsData.length : 0,
       });
     } catch (err: any) {
-      setStatsError(err.message || 'Error fetching stats');
+      console.error('Error fetching stats:', err);
     } finally {
       setStatsLoading(false);
-    }
-    // Try to load cached name for fast UI
-    const cached = await AsyncStorage.getItem('cached_name');
-    if (cached) {
-      const { firstName, lastName } = JSON.parse(cached);
-      setStats((prev: any) => ({ ...prev, first_name: firstName, last_name: lastName }));
     }
   };
 
@@ -163,9 +123,8 @@ export default function ProfileScreen() {
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/welcome');
+          onPress: () => {
+            logout().then(() => router.replace('/welcome'));
           },
         },
       ]
@@ -194,30 +153,9 @@ export default function ProfileScreen() {
     }
   };
 
+  // Navigate to KYC info page
   const fetchKycInfo = async () => {
-    if (kycInfo) {
-      setShowKycModal(true);
-      return;
-    }
-    if (!user || !user.id) {
-      Alert.alert('Error', 'User not found. Please log in again.');
-      return;
-    }
-    setKycLoading(true);
-    try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) throw new Error('No auth token found. Please log in again.');
-      const res = await fetch(`${BASE_URL}/api/kyc/status/${user.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setKycInfo(data);
-      setShowKycModal(true);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to fetch KYC info');
-    } finally {
-      setKycLoading(false);
-    }
+    router.push('/kyc/status');
   };
 
   const profileSections = [
@@ -252,6 +190,7 @@ export default function ProfileScreen() {
           icon: Lock,
           title: 'Security Settings',
           subtitle: 'Password, 2FA, and security',
+          onPress: () => router.push('/two-factor-setup'),
         },
       ],
     },
@@ -280,13 +219,6 @@ export default function ProfileScreen() {
           title: 'Language',
           subtitle: 'English (Kenya)',
           onPress: () => Alert.alert('Info', 'Language settings coming soon'),
-        },
-        {
-          id: 'data-export',
-          icon: Download,
-          title: 'Export Data',
-          subtitle: 'Download your account data',
-          onPress: () => Alert.alert('Info', 'Data export coming soon'),
         },
       ],
     },
@@ -350,7 +282,6 @@ export default function ProfileScreen() {
       ],
     },
   ];
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -358,36 +289,37 @@ export default function ProfileScreen() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           Profile
         </Text>
-        <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.card }]}>
-          <Settings size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
+        {/* Removed gear/settings icon */}
       </View>
 
       <ScrollView 
-        style={styles.content}
+        style={[styles.content, { paddingTop: 8, paddingBottom: 40 }]} // pull up content, add bottom space
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* User Profile Card */}
-        <ProfileCard
-          user={{
-            ...user,
-            firstName: stats?.first_name ?? user?.firstName ?? '',
-            lastName: stats?.last_name ?? user?.lastName ?? '',
-          }}
-          kycStatus={kycStatus}
-          getKycStatusColor={getKycStatusColor}
-          getKycStatusText={getKycStatusText}
-          profileStats={profileStats}
-          colors={colors}
-        />
+        {/* User Profile Card - break up info for clarity */}
+        <View style={{ marginBottom: 16 }}>
+          <ProfileCard
+            user={{
+              ...user,
+              firstName: stats?.first_name ?? user?.firstName ?? '',
+              lastName: stats?.last_name ?? user?.lastName ?? '',
+            }}
+            kycStatus={kycStatus}
+            getKycStatusColor={getKycStatusColor}
+            getKycStatusText={getKycStatusText}
+            profileStats={profileStats}
+            colors={colors}
+          />
+          {/* Example: show balance, goals, etc. as separate cards or rows here if needed */}
+        </View>
 
         {/* Profile Sections */}
         <SettingsList sections={profileSections} colors={colors} />
 
-        {/* Quick Actions */}
+        {/* Quick Actions - remove Export Data, balance layout */}
         <View style={styles.quickActionsSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Quick Actions
@@ -400,14 +332,6 @@ export default function ProfileScreen() {
               <Shield size={24} color={colors.primary} />
               <Text style={[styles.quickActionText, { color: colors.primary }]}>
                 Complete KYC
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.quickActionCard, { backgroundColor: colors.success + '10' }]}
-            >
-              <Download size={24} color={colors.success} />
-              <Text style={[styles.quickActionText, { color: colors.success }]}>
-                Export Data
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -442,46 +366,6 @@ export default function ProfileScreen() {
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
-
-      {/* KYC Info Modal */}
-      <Modal
-        visible={showKycModal}
-        animationType="slide"
-        onRequestClose={() => setShowKycModal(false)}
-        transparent={true}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ width: '90%', maxHeight: '90%', backgroundColor: colors.card, borderRadius: 16, padding: 20 }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text, marginBottom: 12 }}>Personal Information</Text>
-            {kycLoading ? (
-              <Text style={{ color: colors.textSecondary }}>Loading...</Text>
-            ) : kycInfo ? (
-              <ScrollView style={{ maxHeight: 400 }}>
-                {/* Example fields, adjust as needed to match review.tsx */}
-                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Name:</Text>
-                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.first_name} {kycInfo.middle_name} {kycInfo.last_name}</Text>
-                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Gender:</Text>
-                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.gender}</Text>
-                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Email:</Text>
-                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.email}</Text>
-                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Phone:</Text>
-                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.phone_number}</Text>
-                <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>Date of Birth:</Text>
-                <Text style={{ color: colors.text, marginBottom: 8 }}>{kycInfo.date_of_birth}</Text>
-                {/* Add more fields as needed, styled like review screen */}
-              </ScrollView>
-            ) : (
-              <Text style={{ color: colors.error }}>No KYC info found.</Text>
-            )}
-            <TouchableOpacity
-              style={{ marginTop: 20, alignSelf: 'center', backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24 }}
-              onPress={() => setShowKycModal(false)}
-            >
-              <Text style={{ color: colors.background, fontWeight: 'bold' }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -494,12 +378,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 28, // was 60
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 12, // was 24
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 20, // was 28
     fontWeight: 'bold',
   },
   headerButton: {

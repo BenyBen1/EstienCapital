@@ -47,7 +47,25 @@ const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'user_data';
 
+// Helper: refresh Supabase session if expired
+async function ensureSupabaseSession() {
+  const session = await supabase.auth.getSession();
+  if (!session.data.session) {
+    // Try to restore from storage
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+    if (token && refreshToken) {
+      await supabase.auth.setSession({
+        access_token: token,
+        refresh_token: refreshToken,
+      });
+    }
+  }
+}
+
+// In fetchUserProfile, ensure session is valid before API call
 async function fetchUserProfile(userId: string) {
+  await ensureSupabaseSession();
   const response = await apiFetch(`/api/profile/${userId}`);
   if (!response.ok) throw new Error('Failed to fetch user profile');
   return await response.json();

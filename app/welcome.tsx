@@ -27,40 +27,48 @@ export default function WelcomeScreen() {
     <View style={[styles.container, { backgroundColor: '#fff' }]}>
       <StatusBar style="dark" />
       <View style={styles.content}>
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('../assets/images/EstienLogo2Blacktransparent.png')}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
+        {/* Top Section - Logo */}
+        <View style={styles.topSection}>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../assets/images/EstienLogo2Blacktransparent.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
         </View>
-        <View style={styles.overlayBox}>
+
+        {/* Middle Section - Welcome Text */}
+        <View style={styles.middleSection}>
           <View style={styles.welcomeContent}>
             <Text style={[styles.welcomeTitle, { color: '#000' }]}>
-              Welcome to Estien Capital
+              Welcome to{'\n'}Estien Capital
             </Text>
             <Text style={[styles.welcomeSubtitle, { color: colors.primary }]}>
               Professional Digital Asset Investment Platform
             </Text>
-            <Text style={[styles.welcomeDescription, { color: colors.textSecondary, textShadowColor: '#0001', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 2 }]}
-              numberOfLines={3} ellipsizeMode="tail">
+            <Text style={[styles.welcomeDescription, { color: colors.textSecondary }]}>
               Secure access to cryptocurrency investments with expert analysis and institutional-grade portfolio management.
             </Text>
           </View>
         </View>
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/auth/signup')}
-          >
-            <Text style={[styles.primaryButtonText, { color: colors.background }]}>Create Account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.secondaryButton, { borderColor: colors.primary }]}
-            onPress={() => router.push('/auth/login')}
-          >
-            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Log In</Text>
-          </TouchableOpacity>
+
+        {/* Bottom Section - Buttons */}
+        <View style={styles.bottomSection}>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/auth/signup')}
+            >
+              <Text style={[styles.primaryButtonText, { color: colors.background }]}>Create Account</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryButton, { borderColor: colors.primary }]}
+              onPress={() => router.push('/auth/login')}
+            >
+              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Log In</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -73,87 +81,86 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: height * 0.1,
+  },
+  topSection: {
+    flex: 0.35,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+  },
+  middleSection: {
+    flex: 0.45,
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  bottomSection: {
+    flex: 0.2,
+    justifyContent: 'flex-end',
     paddingBottom: 50,
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: 40,
   },
   logoImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 20,
-    marginBottom: 16,
-  },
-  overlayBox: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 20,
-    padding: 24,
-    marginVertical: 24,
-    marginHorizontal: 0,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    width: 140,
+    height: 140,
+    borderRadius: 24,
   },
   welcomeContent: {
     alignItems: 'center',
-    paddingHorizontal: 10,
     width: '100%',
+    paddingHorizontal: 20,
   },
   welcomeTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 16,
+    lineHeight: 38,
   },
   welcomeSubtitle: {
-    fontSize: 18,
+    fontSize: 16,
     textAlign: 'center',
-    marginBottom: 18,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    marginBottom: 20,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    lineHeight: 22,
   },
   welcomeDescription: {
-    fontSize: 17,
+    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 26,
-    opacity: 0.9,
-    fontWeight: '500',
-    marginBottom: 4,
+    lineHeight: 24,
+    opacity: 0.8,
+    fontWeight: '400',
   },
   buttonContainer: {
-    gap: 18,
-    marginTop: 16,
+    gap: 12,
   },
   primaryButton: {
-    height: 56,
-    borderRadius: 12,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    elevation: 6,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
   },
   primaryButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   secondaryButton: {
-    height: 56,
-    borderRadius: 12,
+    height: 48,
+    borderRadius: 14,
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   secondaryButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });

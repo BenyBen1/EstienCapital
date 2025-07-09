@@ -63,7 +63,7 @@ export default function TwoFactorScreen() {
     >
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => router.back()}
+        onPress={() => router.replace('/auth/login')}
       >
         <ArrowLeft size={24} color={colors.text} />
       </TouchableOpacity>

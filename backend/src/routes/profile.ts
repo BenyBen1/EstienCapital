@@ -18,9 +18,26 @@ router.get('/:userId', async (req, res) => {
       .single();
 
     if (error) throw error;
-
-    console.log('GET /profile/:userId - success');
-    res.json(profile);
+    if (!profile) throw new Error('Profile not found');
+    // Map fields to ensure frontend always gets the expected keys
+    res.json({
+      id: profile.id,
+      first_name: profile.first_name ?? profile.firstName ?? '',
+      last_name: profile.last_name ?? profile.lastName ?? '',
+      email: profile.email ?? '',
+      phone_number: profile.phone_number ?? profile.phoneNumber ?? '',
+      date_of_birth: profile.date_of_birth ?? profile.dateOfBirth ?? '',
+      gender: profile.gender ?? '',
+      address: profile.address ?? '',
+      city: profile.city ?? '',
+      country: profile.country ?? '',
+      postal_code: profile.postal_code ?? profile.postalCode ?? '',
+      profile_picture: profile.profile_picture ?? '',
+      kyc_status: profile.kyc_status ?? profile.kycStatus ?? '',
+      account_type: profile.account_type ?? profile.accountType ?? '',
+      created_at: profile.created_at ?? '',
+      // Add any other fields you want to expose
+    });
   } catch (error: any) {
     console.error('GET /profile/:userId - error:', error);
     res.status(400).json({ error: error.message });
@@ -228,22 +245,49 @@ router.get('/:userId/activity', async (req, res) => {
   }
 });
 
-// Example protected profile route
-router.get('/', checkAuth, async (req, res) => {
-  console.log('GET /profile/ (protected) - user:', req.user);
+// List all user profiles (with optional filters)
+router.get('/', async (req, res) => {
   try {
-    // req.user is available here
+    const { accountType, status, search, page = 1, limit = 20 } = req.query;
+    let query = supabase
+      .from('profiles')
+      .select('*', { count: 'exact' });
+
+    if (accountType) query = query.eq('account_type', accountType);
+    if (status) query = query.eq('kyc_status', status);
+    if (search) {
+      query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
+    }
+
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 20;
+    query = query.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
+
+    const { data, error, count } = await query;
+    console.debug('Profiles fetched:', data); // Debug log added
+    if (error) throw error;
+    res.json({ data, total: count, page: pageNum, totalPages: Math.ceil((count || 0) / limitNum) });
+  } catch (error: any) {
+    console.error('GET /profile - error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Example protected profile route (renamed to /me)
+router.get('/me', checkAuth, async (req, res) => {
+  console.log('GET /profile/me (protected) - user:', req.user);
+  try {
     if (!req.user) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
     const userId = req.user.id;
     // Fetch user profile logic here...
-    console.log('GET /profile/ (protected) - success');
+    console.log('GET /profile/me (protected) - success');
     res.json({ message: `Profile for user ${userId}` });
   } catch (error) {
-    console.error('GET /profile/ (protected) - error:', error);
+    console.error('GET /profile/me (protected) - error:', error);
     res.status(400).json({ error: (error as Error).message });
   }
 });
 
-export default router; 
+export default router;

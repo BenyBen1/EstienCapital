@@ -24,6 +24,7 @@ import DepositInstructionsModal from '@/components/DepositInstructionsModal';
 import { BASE_URL } from '@/services/config';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiFetch } from '@/services/apiFetch';
 
 const { width } = Dimensions.get('window');
 
@@ -198,25 +199,18 @@ export default function HomeScreen() {
     const fetchAndCacheProfile = async () => {
       if (user?.id) {
         try {
-          const res = await fetch(`${BASE_URL}/api/profile/${user.id}`);
+          const res = await apiFetch(`/api/profile/${user.id}`);
           const data = await res.json();
-          console.log('DEBUG: Profile API response:', data);
-          setProfile(data);
-          // Cache name locally
-          if (data?.first_name && data?.last_name) {
-            await AsyncStorage.setItem('cached_name', JSON.stringify({ firstName: data.first_name, lastName: data.last_name }));
+          if (data?.error && (data.error.includes('token') || data.error.includes('Session expired'))) {
+            setProfile(null);
+            return;
           }
+          setProfile(data);
         } catch (e) {
           setProfile(null);
         }
       } else {
         setProfile(null);
-      }
-      // Try to load cached name for fast UI
-      const cached = await AsyncStorage.getItem('cached_name');
-      if (cached) {
-        const { firstName, lastName } = JSON.parse(cached);
-        setProfile((prev: any) => ({ ...prev, first_name: firstName, last_name: lastName }));
       }
     };
     fetchAndCacheProfile();
@@ -345,13 +339,20 @@ export default function HomeScreen() {
                 activeOpacity={0.7}
                 onPress={action.onPress}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
+                <View style={[
+                  styles.quickActionIcon,
+                  action.id === 'deposit'
+                    ? { backgroundColor: colors.success + '33' }
+                    : action.id === 'withdraw'
+                    ? { backgroundColor: colors.error + '33' }
+                    : { backgroundColor: '#232323' },
+                ]}>
                   <action.icon size={24} color={action.color} />
                 </View>
-                <Text style={[styles.quickActionText, { color: colors.text }]}>
+                <Text style={[styles.quickActionText, { color: colors.text }]}> 
                   {action.title}
                 </Text>
-                <Text style={[styles.quickActionDescription, { color: colors.textSecondary }]}>
+                <Text style={[styles.quickActionDescription, { color: colors.textSecondary }]}> 
                   {action.description}
                 </Text>
               </TouchableOpacity>
@@ -466,9 +467,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingTop: 16, // increased from 8
+    paddingHorizontal: 20, // slightly more
+    paddingBottom: 10, // increased from 6
   },
   headerContent: {
     flexDirection: 'row',
@@ -484,11 +485,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   greeting: {
-    fontSize: 14,
-    marginBottom: 4,
+    fontSize: 12, // was 14
+    marginBottom: 2, // was 4
   },
   username: {
-    fontSize: 24,
+    fontSize: 18, // was 24
     fontWeight: 'bold',
   },
   headerButton: {
@@ -510,35 +511,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   portfolioSection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-    marginTop: 32, // increased from 8 for more space above the card
+    paddingHorizontal: 20,
+    marginBottom: 18,
+    marginTop: 14,
   },
   portfolioCard: {
-    padding: 14, // was 24
-    borderRadius: 16, // was 20
-    elevation: 6, // was 8
+    padding: 16, // increased from 10
+    borderRadius: 16,
+    elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 }, // was 4
-    shadowOpacity: 0.12, // was 0.15
-    shadowRadius: 6, // was 8
-    minHeight: 120, // add a minHeight to keep it compact
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 5,
+    minHeight: 110,
   },
   portfolioHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10, // was 16
+    marginBottom: 10,
   },
   portfolioTitle: {
-    fontSize: 14, // was 16
-    fontWeight: '500',
-    marginBottom: 6, // was 8
-    opacity: 0.9,
+    fontSize: 14,
+    marginBottom: 6,
   },
   portfolioValue: {
-    fontSize: 28, // was 36
-    fontWeight: 'bold',
+    fontSize: 24,
   },
   portfolioStats: {
     flexDirection: 'row',
@@ -567,13 +562,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   quickActionsSection: {
-    paddingHorizontal: 24,
-    marginBottom: 32,
+    paddingHorizontal: 20,
+    marginBottom: 18,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontSize: 20,
+    marginBottom: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -588,37 +582,34 @@ const styles = StyleSheet.create({
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 14, // more space between
   },
   quickActionCard: {
-    width: (width - 60) / 2,
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
+    width: (width - 54) / 2, // larger
+    padding: 18, // more padding
+    borderRadius: 14,
     elevation: 3,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
   quickActionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
+    backgroundColor: '#232323', // use a neutral background for all icons
   },
   quickActionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: 15,
+    marginBottom: 3,
   },
   quickActionDescription: {
     fontSize: 12,
-    textAlign: 'center',
   },
   bottomSpacing: {
-    height: 40,
+    height: 60, // more space at the bottom
   },
 });

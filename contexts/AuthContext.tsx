@@ -13,7 +13,20 @@ interface User {
   kycStatus: 'pending' | 'approved' | 'rejected' | 'not_started';
   createdAt: string;
   updatedAt: string;
+  accountType?: 'individual' | 'group';
+  groupId?: string;
   // Add more fields as needed
+}
+
+interface GroupMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  accountNumber: string;
+  role: 'admin' | 'member';
+  isAccountManager: boolean;
 }
 
 interface LoginRequest {
@@ -26,7 +39,10 @@ interface RegisterRequest {
   password: string;
   firstName: string;
   lastName: string;
-  accountType: string;
+  accountType: 'individual' | 'group';
+  groupName?: string;
+  groupType?: 'joint' | 'sacco' | 'chama' | 'investment_club';
+  groupMembers?: GroupMember[];
 }
 
 interface AuthContextType {

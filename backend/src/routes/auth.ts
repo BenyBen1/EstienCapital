@@ -10,10 +10,19 @@ const router = Router();
 router.post('/register', async (req, res) => {
   console.log('POST /register - body:', req.body);
   try {
-    const { email, password, firstName, lastName, accountType, jointHolder } = req.body;
+    const { 
+      email, 
+      password, 
+      firstName, 
+      lastName, 
+      accountType, 
+      groupName,
+      groupType,
+      groupMembers
+    } = req.body;
 
     // Helper to register a single user
-    async function registerUser({ email, password, firstName, lastName, accountType }: any) {
+    async function registerUser({ email, password, firstName, lastName, accountType, groupId = null }: any) {
       const registrationTime = new Date().toISOString();
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -23,41 +32,132 @@ router.post('/register', async (req, res) => {
             firstName,
             lastName,
             accountType,
+            groupId,
             registration_time: registrationTime
           }
         }
       });
       if (authError) return { error: authError };
       if (!authData.user) return { error: { message: 'User creation failed' } };
-      // Create wallet, notification preferences, security settings (same as before)
-      await supabase.from('wallets').insert({ user_id: authData.user.id, balance: 0, currency: 'KES' });
-      await supabase.from('notification_preferences').insert({ user_id: authData.user.id, email_notifications: true, sms_notifications: true, push_notifications: true });
-      await supabase.from('security_settings').insert({ user_id: authData.user.id, two_factor_enabled: false, last_password_change: new Date().toISOString() });
+      
+      // Create wallet, notification preferences, security settings
+      await supabase.from('wallets').insert({ 
+        user_id: authData.user.id, 
+        balance: 0, 
+        currency: 'KES',
+        group_id: groupId 
+      });
+      await supabase.from('notification_preferences').insert({ 
+        user_id: authData.user.id, 
+        email_notifications: true, 
+        sms_notifications: true, 
+        push_notifications: true 
+      });
+      await supabase.from('security_settings').insert({ 
+        user_id: authData.user.id, 
+        two_factor_enabled: false, 
+        last_password_change: new Date().toISOString() 
+      });
       return { user: authData.user };
     }
 
-    if (accountType === 'joint' && jointHolder) {
-      // Register primary user
-      const primary = await registerUser({ email, password, firstName, lastName, accountType });
-      if (primary.error) return res.status(400).json({ error: primary.error.message || 'Primary user registration failed' });
-      // Register joint holder
-      const secondary = await registerUser({
-        email: jointHolder.email,
-        password: jointHolder.password,
-        firstName: jointHolder.firstName,
-        lastName: jointHolder.lastName,
-        accountType: 'joint',
+    if (accountType === 'group' && groupMembers && groupMembers.length > 0) {
+      // Create the group first
+      const { data: groupData, error: groupError } = await supabase
+        .from('account_groups')
+        .insert({
+          name: groupName,
+          type: groupType || 'sacco',
+          status: 'pending',
+          created_by: email, // Will update with actual user ID later
+        })
+        .select()
+        .single();
+
+      if (groupError) {
+        return res.status(400).json({ error: 'Group creation failed', details: groupError });
+      }
+
+      const groupId = groupData.id;
+      const registeredMembers = [];
+
+      // Register the primary user (account creator)
+      const primary = await registerUser({ 
+        email, 
+        password, 
+        firstName, 
+        lastName, 
+        accountType,
+        groupId 
       });
-      if (secondary.error) return res.status(400).json({ error: secondary.error.message || 'Joint holder registration failed' });
-      // Link users as a joint account (e.g., create a joint_accounts table, or add a reference field)
-      // For now, just return both users
+      
+      if (primary.error) {
+        return res.status(400).json({ error: primary.error.message || 'Primary user registration failed' });
+      }
+
+      // Update group with actual creator user ID
+      await supabase
+        .from('account_groups')
+        .update({ created_by: primary.user.id })
+        .eq('id', groupId);
+
+      registeredMembers.push({
+        user: primary.user,
+        accountNumber: 'MAIN', // Main account holder
+        role: 'admin',
+        isAccountManager: true,
+      });
+
+      // Register each group member
+      for (const member of groupMembers) {
+        const memberUser = await registerUser({
+          email: member.email,
+          password: `TempPass123!${Date.now()}`, // Generate temporary password
+          firstName: member.firstName,
+          lastName: member.lastName,
+          accountType: 'group',
+          groupId,
+        });
+
+        if (memberUser.error) {
+          console.error(`Failed to register member ${member.email}:`, memberUser.error);
+          continue; // Continue with other members
+        }
+
+        registeredMembers.push({
+          user: memberUser.user,
+          accountNumber: member.accountNumber,
+          role: member.role,
+          isAccountManager: member.isAccountManager,
+        });
+
+        // Create group membership record
+        await supabase.from('group_members').insert({
+          group_id: groupId,
+          user_id: memberUser.user.id,
+          account_number: member.accountNumber,
+          role: member.role,
+          is_account_manager: member.isAccountManager,
+          phone_number: member.phoneNumber,
+          status: 'pending',
+        });
+      }
+
       return res.status(200).json({
-        message: 'Joint account registration initiated. Please check both emails to confirm accounts.',
+        message: 'Group account registration initiated. Members will receive email invitations.',
         requiresEmailConfirmation: true,
-        users: [
-          { id: primary.user.id, email: primary.user.email },
-          { id: secondary.user.id, email: secondary.user.email },
-        ]
+        group: {
+          id: groupId,
+          name: groupName,
+          type: groupType,
+        },
+        members: registeredMembers.map(m => ({
+          id: m.user.id,
+          email: m.user.email,
+          accountNumber: m.accountNumber,
+          role: m.role,
+          isAccountManager: m.isAccountManager,
+        })),
       });
     } else {
       // Individual account (original logic)

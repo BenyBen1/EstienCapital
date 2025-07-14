@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,64 +7,73 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, User, Mail, Phone, Calendar } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useKYC } from '@/contexts/KYCContext';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function PersonalDetailsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { kycData, setKycData } = useKYC();
   
-  const [formData, setFormData] = useState({
-    firstName: '',
-    middleName: '',
-    lastName: '',
-    gender: '',
-    email: 'john.doe@example.com', // Pre-filled from registration
-    phoneNumber: '',
-    dateOfBirth: '',
-  });
-
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Autofill email from auth context when the component loads
+  useEffect(() => {
+    if (user?.email && !kycData.personalDetails.email) {
+      updateFormData('email', user.email);
+    }
+  }, [user]);
 
   const genderOptions = ['Male', 'Female', 'Other'];
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    const { personalDetails } = kycData;
 
-    if (!formData.firstName.trim()) {
+    if (!personalDetails.firstName.trim()) {
       newErrors.firstName = 'First name is required';
-    } else if (!/^[a-zA-Z\s-]+$/.test(formData.firstName)) {
+    } else if (!/^[a-zA-Z\s-]+$/.test(personalDetails.firstName)) {
       newErrors.firstName = 'First name can only contain letters, spaces, and hyphens';
     }
 
-    if (!formData.lastName.trim()) {
+    if (!personalDetails.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
-    } else if (!/^[a-zA-Z\s-]+$/.test(formData.lastName)) {
+    } else if (!/^[a-zA-Z\s-]+$/.test(personalDetails.lastName)) {
       newErrors.lastName = 'Last name can only contain letters, spaces, and hyphens';
     }
 
-    if (formData.middleName && !/^[a-zA-Z\s-]+$/.test(formData.middleName)) {
+    if (personalDetails.middleName && !/^[a-zA-Z\s-]+$/.test(personalDetails.middleName)) {
       newErrors.middleName = 'Middle name can only contain letters, spaces, and hyphens';
     }
 
-    if (!formData.gender) {
+    if (!personalDetails.gender) {
       newErrors.gender = 'Gender selection is required';
     }
 
-    if (!formData.phoneNumber.trim()) {
+    if (!personalDetails.phoneNumber.trim()) {
       newErrors.phoneNumber = 'Phone number is required';
-    } else if (!/^(\+254|0)[17]\d{8}$/.test(formData.phoneNumber.replace(/\s/g, ''))) {
+    } else if (!/^(\+254|0)[17]\d{8}$/.test(personalDetails.phoneNumber.replace(/\s/g, ''))) {
       newErrors.phoneNumber = 'Please enter a valid Kenyan phone number';
     }
 
-    if (!formData.dateOfBirth) {
+    if (!personalDetails.dateOfBirth) {
       newErrors.dateOfBirth = 'Date of birth is required';
     } else {
-      const birthDate = new Date(formData.dateOfBirth);
+      const birthDate = new Date(personalDetails.dateOfBirth);
       const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
       if (age < 18) {
         newErrors.dateOfBirth = 'You must be at least 18 years old';
       }
@@ -76,14 +85,18 @@ export default function PersonalDetailsScreen() {
 
   const handleNext = () => {
     if (validateForm()) {
-      // Save form data (in real app, this would be saved to state management or API)
       router.push('/kyc/identification');
     }
   };
 
   const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
+    setKycData(prev => ({
+      ...prev,
+      personalDetails: {
+        ...prev.personalDetails,
+        [field]: value,
+      },
+    }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -115,7 +128,7 @@ export default function PersonalDetailsScreen() {
         </Text>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Basic Information
@@ -129,11 +142,14 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               First Name *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.firstName ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.firstName ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.firstName}
+                value={kycData.personalDetails.firstName}
                 onChangeText={(value) => updateFormData('firstName', value)}
                 placeholder="Enter your first name"
                 placeholderTextColor={colors.textSecondary}
@@ -152,11 +168,14 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Middle Name
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.middleName ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.middleName ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.middleName}
+                value={kycData.personalDetails.middleName}
                 onChangeText={(value) => updateFormData('middleName', value)}
                 placeholder="Enter your middle name (optional)"
                 placeholderTextColor={colors.textSecondary}
@@ -175,11 +194,14 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Last Name *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.lastName ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.lastName ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <User size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.lastName}
+                value={kycData.personalDetails.lastName}
                 onChangeText={(value) => updateFormData('lastName', value)}
                 placeholder="Enter your last name"
                 placeholderTextColor={colors.textSecondary}
@@ -205,8 +227,8 @@ export default function PersonalDetailsScreen() {
                   style={[
                     styles.genderOption,
                     {
-                      backgroundColor: formData.gender === option ? colors.primary : colors.card,
-                      borderColor: formData.gender === option ? colors.primary : colors.border,
+                      backgroundColor: kycData.personalDetails.gender === option ? colors.primary : colors.card,
+                      borderColor: kycData.personalDetails.gender === option ? colors.primary : colors.border,
                     },
                   ]}
                   onPress={() => updateFormData('gender', option)}
@@ -215,7 +237,7 @@ export default function PersonalDetailsScreen() {
                     style={[
                       styles.genderText,
                       {
-                        color: formData.gender === option ? colors.background : colors.text,
+                        color: kycData.personalDetails.gender === option ? colors.background : colors.text,
                       },
                     ]}
                   >
@@ -231,19 +253,15 @@ export default function PersonalDetailsScreen() {
             )}
           </View>
 
-          {/* Email */}
+          {/* Email (Read-only) */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Email Address *
-            </Text>
-            <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Mail size={20} color={colors.textSecondary} />
+            <Text style={[styles.label, { color: colors.text }]}>Email Address *</Text>
+            <View style={[styles.inputContainer, { backgroundColor: colors.primary + '10', borderColor: colors.primary }]}>
+              <Mail size={20} color={colors.primary} />
               <TextInput
-                style={[styles.textInput, { color: colors.textSecondary }]}
-                value={formData.email}
+                style={[styles.textInput, { color: colors.text, fontWeight: '600' }]}
+                value={kycData.personalDetails.email}
                 editable={false}
-                placeholder="Email from registration"
-                placeholderTextColor={colors.textSecondary}
               />
             </View>
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>
@@ -256,11 +274,14 @@ export default function PersonalDetailsScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Phone Number *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.phoneNumber ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.phoneNumber ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Phone size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.phoneNumber}
+                value={kycData.personalDetails.phoneNumber}
                 onChangeText={(value) => updateFormData('phoneNumber', value)}
                 placeholder="+254 7XX XXX XXX"
                 placeholderTextColor={colors.textSecondary}
@@ -276,27 +297,74 @@ export default function PersonalDetailsScreen() {
 
           {/* Date of Birth */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Date of Birth *
-            </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.dateOfBirth ? colors.error : colors.border }]}>
+            <Text style={[styles.label, { color: colors.text }]}>Date of Birth *</Text>
+            <TouchableOpacity
+              style={[
+                styles.inputContainer,
+                {
+                  borderColor: errors.dateOfBirth ? colors.error : colors.border,
+                  backgroundColor: colors.surface,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                },
+              ]}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.7}
+            >
               <Calendar size={20} color={colors.textSecondary} />
-              <TextInput
-                style={[styles.textInput, { color: colors.text }]}
-                value={formData.dateOfBirth}
-                onChangeText={(value) => updateFormData('dateOfBirth', value)}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-            {errors.dateOfBirth && (
-              <Text style={[styles.errorText, { color: colors.error }]}>
-                {errors.dateOfBirth}
+              <Text
+                style={[
+                  styles.textInput,
+                  { color: colors.text, marginLeft: 12, fontSize: 16, paddingVertical: 12 },
+                ]}
+              >
+                {kycData.personalDetails.dateOfBirth
+                  ? kycData.personalDetails.dateOfBirth
+                  : 'YYYY-MM-DD'}
               </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              Platform.OS === 'web' ? (
+                <TextInput
+                  style={[styles.textInput, { color: colors.text, marginTop: 8 }]}
+                  value={kycData.personalDetails.dateOfBirth}
+                  onChangeText={(value) => updateFormData('dateOfBirth', value)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              ) : (
+                <DateTimePicker
+                  value={kycData.personalDetails.dateOfBirth ? new Date(kycData.personalDetails.dateOfBirth) : new Date()}
+                  mode="date"
+                  display="default"
+                  maximumDate={new Date()}
+                  onChange={(event, selectedDate) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) {
+                      const iso = selectedDate.toISOString().split('T')[0];
+                      updateFormData('dateOfBirth', iso);
+                    }
+                  }}
+                />
+              )
             )}
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-              You must be at least 18 years old to open an account.
-            </Text>
+            {errors.dateOfBirth && (
+              <Text style={[styles.errorText, { color: colors.error }]}> {errors.dateOfBirth} </Text>
+            )}
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>You must be at least 18 years old to open an account.</Text>
+          </View>
+
+          {/* Information Card */}
+          <View style={[styles.infoCard, { backgroundColor: colors.primary + '10' }]}>
+            <User size={20} color={colors.primary} />
+            <View style={styles.infoContent}>
+              <Text style={[styles.infoTitle, { color: colors.text }]}>
+                Important Information
+              </Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                Please ensure all information matches your official identification documents exactly. This information will be verified during the KYC process.
+              </Text>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -392,12 +460,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: 'transparent',
   },
   textInput: {
     flex: 1,
     fontSize: 16,
     marginLeft: 12,
+    backgroundColor: 'transparent',
   },
   errorText: {
     fontSize: 14,
@@ -406,6 +474,7 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 14,
     marginTop: 4,
+    lineHeight: 18,
   },
   genderContainer: {
     flexDirection: 'row',
@@ -422,6 +491,25 @@ const styles = StyleSheet.create({
   genderText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  infoCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  infoContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   footer: {
     paddingHorizontal: 24,

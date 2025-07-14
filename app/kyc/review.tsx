@@ -6,396 +6,321 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, CircleCheck as CheckCircle, CreditCard as Edit, User, FileText, Briefcase, MapPin, Users, Send } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  CircleCheck as CheckCircle,
+  CreditCard as Edit,
+  User,
+  FileText,
+  Briefcase,
+  MapPin,
+  Users,
+  Send,
+} from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useKYC } from '@/contexts/KYCContext';
+import { useAuth } from '@/contexts/AuthContext';
+import * as FileSystem from 'expo-file-system';
+import { apiClient } from '@/services/apiClient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/services/supabase';
 
 export default function ReviewScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { kycData, resetKycData } = useKYC();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock data - in real app, this would come from state management
-  const kycData = {
-    personalDetails: {
-      firstName: 'John',
-      middleName: 'Michael',
-      lastName: 'Doe',
-      gender: 'Male',
-      email: 'john.doe@example.com',
-      phoneNumber: '+254 712 345 678',
-      dateOfBirth: '1990-05-15',
-    },
-    identification: {
-      idDocumentType: 'National ID',
-      idNumber: '12345678',
-      kraPin: 'A123456789B',
-      idDocument: { uri: 'mock-id-document.jpg' },
-      passportPhoto: { uri: 'mock-passport-photo.jpg' },
-    },
-    professional: {
-      occupation: 'Software Engineer',
-      sourceOfWealth: 'Employment Income',
-    },
-    address: {
-      physicalAddress: '123 Main Street, Westlands',
-      city: 'Nairobi',
-      countryOfResidency: 'Kenya',
-      postalAddress: 'P.O. Box 12345',
-      postalCode: '00100',
-    },
-    nextOfKin: {
-      firstName: 'Jane',
-      lastName: 'Doe',
-      relationship: 'Spouse',
-      phoneNumber: '+254 723 456 789',
-      email: 'jane.doe@example.com',
-    },
+  const fileToBase64 = async (uri: string) => {
+    try {
+      const content = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:image/jpeg;base64,${content}`;
+    } catch (e) {
+      console.error('Failed to read file to base64', e);
+      return null;
+    }
   };
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
-    
-    // Simulate API submission
-    setTimeout(() => {
-      setIsSubmitting(false);
-      Alert.alert(
-        'KYC Submitted Successfully',
-        'Your KYC information has been submitted for review. You will receive an email confirmation shortly. The review process typically takes 24-48 hours.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.push('/kyc/status'),
-          },
-        ]
-      );
-    }, 2000);
-  };
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to submit KYC.');
+      return;
+    }
+    if (!kycData.identification.idDocument || !kycData.identification.passportPhoto) {
+      Alert.alert('Error', 'ID Document and Passport Photo are required.');
+      return;
+    }
 
-  const editSection = (section: string) => {
-    switch (section) {
-      case 'personal':
-        router.push('/kyc/personal-details');
-        break;
-      case 'identification':
-        router.push('/kyc/identification');
-        break;
-      case 'professional':
-        router.push('/kyc/professional');
-        break;
-      case 'address':
-        router.push('/kyc/address');
-        break;
-      case 'nextOfKin':
-        router.push('/kyc/next-of-kin');
-        break;
+    const session = await supabase.auth.getSession();
+    const token = session?.data?.session?.access_token;
+    if (!token) {
+      Alert.alert('Error', 'Session expired. Please log in again.');
+      return;
+    }
+
+    await AsyncStorage.setItem('auth_token', token);
+    setIsSubmitting(true);
+
+    try {
+      const idDocumentBase64 = await fileToBase64(kycData.identification.idDocument.uri);
+      const passportPhotoBase64 = await fileToBase64(kycData.identification.passportPhoto.uri);
+      if (!idDocumentBase64 || !passportPhotoBase64) {
+        throw new Error('Failed to convert files for upload.');
+      }
+
+      const payload = {
+        firstName: kycData.personalDetails.firstName,
+        middleName: kycData.personalDetails.middleName,
+        lastName: kycData.personalDetails.lastName,
+        gender: kycData.personalDetails.gender,
+        phoneNumber: kycData.personalDetails.phoneNumber,
+        dateOfBirth: kycData.personalDetails.dateOfBirth,
+        idType: kycData.identification.idDocumentType,
+        idNumber: kycData.identification.idNumber,
+        kraPin: kycData.identification.kraPin,
+        idDocument: {
+          base64: idDocumentBase64,
+          fileName: kycData.identification.idDocument.name,
+        },
+        passportPhoto: {
+          base64: passportPhotoBase64,
+          fileName: kycData.identification.passportPhoto.name,
+        },
+        occupation: kycData.professional.occupation,
+        sourceOfWealth: kycData.professional.sourceOfWealth,
+        physicalAddress: kycData.address.physicalAddress,
+        postalAddress: kycData.address.postalAddress,
+        postalCode: kycData.address.postalCode,
+        city: kycData.address.city,
+        country: kycData.address.countryOfResidency,
+        nextOfKinFirstName: kycData.nextOfKin.firstName,
+        nextOfKinLastName: kycData.nextOfKin.lastName,
+        nextOfKinRelationship: kycData.nextOfKin.relationship,
+        nextOfKinPhone: kycData.nextOfKin.phoneNumber,
+        nextOfKinEmail: kycData.nextOfKin.email,
+      };
+
+      const result = await apiClient.submitKYC(payload);
+
+      Alert.alert('KYC Submitted Successfully', 'Your information has been submitted for review.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            resetKycData();
+            router.push('/kyc/status');
+          },
+        },
+      ]);
+    } catch (error) {
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      if (error && typeof error === 'object' && 'message' in error) errorMessage = (error as any).message;
+      Alert.alert('Submission Failed', errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <ArrowLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Review & Submit
-        </Text>
-        <View style={styles.placeholder} />
+      <View style={[styles.header, { backgroundColor: colors.surface }]}> 
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}> 
+          <ArrowLeft size={24} color={colors.text} /> 
+        </TouchableOpacity> 
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Review & Submit</Text> 
+        <View style={styles.placeholder} /> 
       </View>
 
       {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { backgroundColor: colors.primary, width: '100%' }]} />
-        </View>
-        <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-          Step 6 of 6
-        </Text>
+      <View style={styles.progressContainer}> 
+        <View style={styles.progressBar}> 
+          <View style={[styles.progressFill, { backgroundColor: colors.primary, width: '100%' }]} /> 
+        </View> 
+        <Text style={[styles.progressText, { color: colors.textSecondary }]}>Step 6 of 6</Text> 
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.formSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Review Your Information
-          </Text>
-          <Text style={[styles.sectionDescription, { color: colors.textSecondary }]}>
-            Please review all the information below carefully before submitting. You can edit any section by tapping the edit button.
-          </Text>
+      <ScrollView style={styles.content}> 
+        <View style={styles.formSection}> 
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Review Your Information</Text> 
+          <Text style={[styles.sectionDescription, { color: colors.textSecondary }]}>Please review all the information below carefully before submitting. You can edit any section by tapping the edit button.</Text>
 
           {/* Personal Details */}
-          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewTitleContainer}>
-                <User size={20} color={colors.primary} />
-                <Text style={[styles.reviewTitle, { color: colors.text }]}>
-                  Personal Details
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.editButton, { backgroundColor: colors.primary + '20' }]}
-                onPress={() => editSection('personal')}
-              >
-                <Edit size={16} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.reviewContent}>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Name:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {`${kycData.personalDetails.firstName} ${kycData.personalDetails.middleName} ${kycData.personalDetails.lastName}`}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Gender:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.personalDetails.gender}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Email:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.personalDetails.email}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Phone:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.personalDetails.phoneNumber}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Date of Birth:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.personalDetails.dateOfBirth}
-                </Text>
-              </View>
-            </View>
+          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}> 
+            <View style={styles.reviewHeader}> 
+              <View style={styles.reviewTitleContainer}> 
+                <User size={20} color={colors.primary} /> 
+                <Text style={[styles.reviewTitle, { color: colors.text }]}>Personal Details</Text> 
+              </View> 
+              {/* Optionally add edit button here */} 
+            </View> 
+            <View style={styles.reviewContent}> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Name:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}> {`${kycData.personalDetails.firstName} ${kycData.personalDetails.middleName} ${kycData.personalDetails.lastName}`}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Gender:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.personalDetails.gender}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Email:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.personalDetails.email}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Phone:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.personalDetails.phoneNumber}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Date of Birth:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.personalDetails.dateOfBirth}</Text> 
+              </View> 
+            </View> 
           </View>
 
           {/* Identification */}
-          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewTitleContainer}>
-                <FileText size={20} color={colors.primary} />
-                <Text style={[styles.reviewTitle, { color: colors.text }]}>
-                  Identification
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.editButton, { backgroundColor: colors.primary + '20' }]}
-                onPress={() => editSection('identification')}
-              >
-                <Edit size={16} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.reviewContent}>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>ID Type:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.identification.idDocumentType}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>ID Number:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.identification.idNumber}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>KRA PIN:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.identification.kraPin}
-                </Text>
-              </View>
-              <View style={styles.documentsRow}>
-                <View style={styles.documentItem}>
-                  <Text style={[styles.documentLabel, { color: colors.textSecondary }]}>
-                    ID Document
-                  </Text>
-                  <View style={[styles.documentStatus, { backgroundColor: colors.success + '20' }]}>
-                    <CheckCircle size={16} color={colors.success} />
-                    <Text style={[styles.documentStatusText, { color: colors.success }]}>
-                      Uploaded
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.documentItem}>
-                  <Text style={[styles.documentLabel, { color: colors.textSecondary }]}>
-                    Passport Photo
-                  </Text>
-                  <View style={[styles.documentStatus, { backgroundColor: colors.success + '20' }]}>
-                    <CheckCircle size={16} color={colors.success} />
-                    <Text style={[styles.documentStatusText, { color: colors.success }]}>
-                      Uploaded
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
+          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}> 
+            <View style={styles.reviewHeader}> 
+              <View style={styles.reviewTitleContainer}> 
+                <FileText size={20} color={colors.primary} /> 
+                <Text style={[styles.reviewTitle, { color: colors.text }]}>Identification</Text> 
+              </View> 
+            </View> 
+            <View style={styles.reviewContent}> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>ID Type:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.identification.idDocumentType}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>ID Number:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.identification.idNumber}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>KRA PIN:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.identification.kraPin}</Text> 
+              </View> 
+              <View style={styles.documentsRow}> 
+                <View style={styles.documentItem}> 
+                  <Text style={[styles.documentLabel, { color: colors.textSecondary }]}>ID Document</Text> 
+                  <View style={[styles.documentStatus, { backgroundColor: kycData.identification.idDocument ? colors.success + '20' : colors.error + '20' }]}> 
+                    <CheckCircle size={16} color={kycData.identification.idDocument ? colors.success : colors.error} /> 
+                    <Text style={[styles.documentStatusText, { color: kycData.identification.idDocument ? colors.success : colors.error }]}> {kycData.identification.idDocument ? 'Uploaded' : 'Missing'}</Text> 
+                  </View> 
+                </View> 
+                <View style={styles.documentItem}> 
+                  <Text style={[styles.documentLabel, { color: colors.textSecondary }]}>Passport Photo</Text> 
+                  <View style={[styles.documentStatus, { backgroundColor: kycData.identification.passportPhoto ? colors.success + '20' : colors.error + '20' }]}> 
+                    <CheckCircle size={16} color={kycData.identification.passportPhoto ? colors.success : colors.error} /> 
+                    <Text style={[styles.documentStatusText, { color: kycData.identification.passportPhoto ? colors.success : colors.error }]}> {kycData.identification.passportPhoto ? 'Uploaded' : 'Missing'}</Text> 
+                  </View> 
+                </View> 
+              </View> 
+            </View> 
           </View>
 
           {/* Professional Information */}
-          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewTitleContainer}>
-                <Briefcase size={20} color={colors.primary} />
-                <Text style={[styles.reviewTitle, { color: colors.text }]}>
-                  Professional Information
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.editButton, { backgroundColor: colors.primary + '20' }]}
-                onPress={() => editSection('professional')}
-              >
-                <Edit size={16} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.reviewContent}>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Occupation:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.professional.occupation}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Source of Wealth:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.professional.sourceOfWealth}
-                </Text>
-              </View>
-            </View>
+          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}> 
+            <View style={styles.reviewHeader}> 
+              <View style={styles.reviewTitleContainer}> 
+                <Briefcase size={20} color={colors.primary} /> 
+                <Text style={[styles.reviewTitle, { color: colors.text }]}>Professional Information</Text> 
+              </View> 
+            </View> 
+            <View style={styles.reviewContent}> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Occupation:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.professional.occupation}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Source of Wealth:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.professional.sourceOfWealth}</Text> 
+              </View> 
+            </View> 
           </View>
 
           {/* Address & Residency */}
-          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewTitleContainer}>
-                <MapPin size={20} color={colors.primary} />
-                <Text style={[styles.reviewTitle, { color: colors.text }]}>
-                  Address & Residency
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.editButton, { backgroundColor: colors.primary + '20' }]}
-                onPress={() => editSection('address')}
-              >
-                <Edit size={16} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.reviewContent}>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Physical Address:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.address.physicalAddress}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>City:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.address.city}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Country:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.address.countryOfResidency}
-                </Text>
-              </View>
+          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}> 
+            <View style={styles.reviewHeader}> 
+              <View style={styles.reviewTitleContainer}> 
+                <MapPin size={20} color={colors.primary} /> 
+                <Text style={[styles.reviewTitle, { color: colors.text }]}>Address & Residency</Text> 
+              </View> 
+            </View> 
+            <View style={styles.reviewContent}> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Physical Address:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.address.physicalAddress}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>City:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.address.city}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Country:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.address.countryOfResidency}</Text> 
+              </View> 
               {kycData.address.postalAddress && (
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Postal Address:</Text>
-                  <Text style={[styles.reviewValue, { color: colors.text }]}>
-                    {kycData.address.postalAddress}
-                  </Text>
+                <View style={styles.reviewRow}> 
+                  <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Postal Address:</Text> 
+                  <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.address.postalAddress}</Text> 
                 </View>
               )}
-            </View>
+            </View> 
           </View>
 
           {/* Next of Kin */}
-          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewTitleContainer}>
-                <Users size={20} color={colors.primary} />
-                <Text style={[styles.reviewTitle, { color: colors.text }]}>
-                  Next of Kin
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.editButton, { backgroundColor: colors.primary + '20' }]}
-                onPress={() => editSection('nextOfKin')}
-              >
-                <Edit size={16} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.reviewContent}>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Name:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {`${kycData.nextOfKin.firstName} ${kycData.nextOfKin.lastName}`}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Relationship:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.nextOfKin.relationship}
-                </Text>
-              </View>
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Phone:</Text>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>
-                  {kycData.nextOfKin.phoneNumber}
-                </Text>
-              </View>
+          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}> 
+            <View style={styles.reviewHeader}> 
+              <View style={styles.reviewTitleContainer}> 
+                <Users size={20} color={colors.primary} /> 
+                <Text style={[styles.reviewTitle, { color: colors.text }]}>Next of Kin</Text> 
+              </View> 
+            </View> 
+            <View style={styles.reviewContent}> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Name:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{`${kycData.nextOfKin.firstName} ${kycData.nextOfKin.lastName}`}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Relationship:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.nextOfKin.relationship}</Text> 
+              </View> 
+              <View style={styles.reviewRow}> 
+                <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Phone:</Text> 
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.nextOfKin.phoneNumber}</Text> 
+              </View> 
               {kycData.nextOfKin.email && (
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Email:</Text>
-                  <Text style={[styles.reviewValue, { color: colors.text }]}>
-                    {kycData.nextOfKin.email}
-                  </Text>
+                <View style={styles.reviewRow}> 
+                  <Text style={[styles.reviewLabel, { color: colors.textSecondary }]}>Email:</Text> 
+                  <Text style={[styles.reviewValue, { color: colors.text }]}>{kycData.nextOfKin.email}</Text> 
                 </View>
               )}
-            </View>
+            </View> 
           </View>
 
           {/* Declaration */}
-          <View style={[styles.declarationCard, { backgroundColor: colors.warning + '10' }]}>
-            <Text style={[styles.declarationTitle, { color: colors.text }]}>
-              Declaration
-            </Text>
-            <Text style={[styles.declarationText, { color: colors.textSecondary }]}>
-              By submitting this KYC information, I declare that:
-              {'\n\n'}• All information provided is true, accurate, and complete
-              {'\n'}• I understand that providing false information may result in account closure
-              {'\n'}• I consent to Estien Capital verifying this information with relevant authorities
-              {'\n'}• I agree to notify Estien Capital of any changes to this information
-            </Text>
+          <View style={[styles.declarationCard, { backgroundColor: colors.warning + '10' }]}> 
+            <Text style={[styles.declarationTitle, { color: colors.text }]}>Declaration</Text> 
+            <Text style={[styles.declarationText, { color: colors.textSecondary }]}>By submitting this KYC information, I declare that:{'\n\n'}• All information provided is true, accurate, and complete{'\n'}• I understand that providing false information may result in account closure{'\n'}• I consent to Estien Capital verifying this information with relevant authorities{'\n'}• I agree to notify Estien Capital of any changes to this information</Text> 
           </View>
         </View>
       </ScrollView>
 
       {/* Submit Button */}
-      <View style={[styles.footer, { backgroundColor: colors.surface }]}>
+      <View style={[styles.footer, { backgroundColor: colors.surface }]}> 
         <TouchableOpacity
-          style={[
-            styles.submitButton,
-            { backgroundColor: colors.primary },
-            isSubmitting && styles.buttonDisabled,
-          ]}
+          style={[styles.submitButton, { backgroundColor: colors.primary }, isSubmitting && styles.buttonDisabled]}
           onPress={handleSubmit}
           disabled={isSubmitting}
         >
           <Send size={20} color={colors.background} />
-          <Text style={[styles.submitButtonText, { color: colors.background }]}>
-            {isSubmitting ? 'Submitting...' : 'Submit KYC Application'}
-          </Text>
+          <Text style={[styles.submitButtonText, { color: colors.background }]}> {isSubmitting ? 'Submitting...' : 'Submit KYC Application'}</Text>
+          {isSubmitting && <ActivityIndicator color={colors.background} style={{ marginLeft: 8 }} />}
         </TouchableOpacity>
       </View>
     </View>

@@ -10,19 +10,13 @@ import {
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, MapPin, Chrome as Home, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useKYC } from '@/contexts/KYCContext';
 
 export default function AddressScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { kycData, setKycData } = useKYC();
   
-  const [formData, setFormData] = useState({
-    physicalAddress: '',
-    postalAddress: '',
-    postalCode: '',
-    city: '',
-    countryOfResidency: '',
-  });
-
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const countries = [
@@ -39,16 +33,17 @@ export default function AddressScreen() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    const { address } = kycData;
 
-    if (!formData.physicalAddress.trim()) {
+    if (!address.physicalAddress.trim()) {
       newErrors.physicalAddress = 'Physical address is required';
     }
 
-    if (!formData.city.trim()) {
+    if (!address.city.trim()) {
       newErrors.city = 'City/Town is required';
     }
 
-    if (!formData.countryOfResidency) {
+    if (!address.countryOfResidency) {
       newErrors.countryOfResidency = 'Country of residency is required';
     }
 
@@ -63,7 +58,13 @@ export default function AddressScreen() {
   };
 
   const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setKycData(prev => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        [field]: value,
+      },
+    }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -95,7 +96,7 @@ export default function AddressScreen() {
         </Text>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Address & Residency Information
@@ -112,13 +113,18 @@ export default function AddressScreen() {
             <Text style={[styles.labelDescription, { color: colors.textSecondary }]}>
               Your current residential address
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.physicalAddress ? colors.error : colors.border }]}>
-              <Home size={20} color={colors.textSecondary} />
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.physicalAddress ? colors.error : colors.border,
+              backgroundColor: colors.surface,
+              alignItems: 'flex-start',
+              paddingVertical: 16,
+            }]}>
+              <Home size={20} color={colors.textSecondary} style={{ marginTop: 2 }} />
               <TextInput
                 style={[styles.textAreaInput, { color: colors.text }]}
-                value={formData.physicalAddress}
+                value={kycData.address.physicalAddress}
                 onChangeText={(value) => updateFormData('physicalAddress', value)}
-                placeholder="Enter your full physical address including building, street, area"
+                placeholder="e.g., Apartment A, Building B, Street C"
                 placeholderTextColor={colors.textSecondary}
                 multiline
                 numberOfLines={3}
@@ -137,13 +143,16 @@ export default function AddressScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               City/Town *
             </Text>
-            <View style={[styles.inputContainer, { borderColor: errors.city ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: errors.city ? colors.error : colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <MapPin size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.city}
+                value={kycData.address.city}
                 onChangeText={(value) => updateFormData('city', value)}
-                placeholder="Enter your city or town"
+                placeholder="e.g., Nairobi"
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="words"
               />
@@ -164,44 +173,28 @@ export default function AddressScreen() {
               The country where you currently reside
             </Text>
             <View style={styles.countryContainer}>
-              {countries.map((country) => (
+              {countries.map(country => (
                 <TouchableOpacity
                   key={country}
                   style={[
                     styles.countryOption,
                     {
-                      backgroundColor: formData.countryOfResidency === country ? colors.primary + '20' : colors.card,
-                      borderColor: formData.countryOfResidency === country ? colors.primary : colors.border,
+                      backgroundColor: kycData.address.countryOfResidency === country ? colors.primary : colors.card,
+                      borderColor: kycData.address.countryOfResidency === country ? colors.primary : colors.border,
                     },
                   ]}
                   onPress={() => updateFormData('countryOfResidency', country)}
                 >
-                  <View style={styles.countryContent}>
-                    <View
-                      style={[
-                        styles.radioButton,
-                        {
-                          borderColor: formData.countryOfResidency === country ? colors.primary : colors.border,
-                          backgroundColor: formData.countryOfResidency === country ? colors.primary : 'transparent',
-                        },
-                      ]}
-                    >
-                      {formData.countryOfResidency === country && (
-                        <View style={[styles.radioButtonInner, { backgroundColor: colors.background }]} />
-                      )}
-                    </View>
-                    <Text
-                      style={[
-                        styles.countryText,
-                        {
-                          color: formData.countryOfResidency === country ? colors.primary : colors.text,
-                          fontWeight: formData.countryOfResidency === country ? '600' : '400',
-                        },
-                      ]}
-                    >
-                      {country}
-                    </Text>
-                  </View>
+                  <Text
+                    style={[
+                      styles.countryText,
+                      {
+                        color: kycData.address.countryOfResidency === country ? colors.background : colors.text,
+                      },
+                    ]}
+                  >
+                    {country}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -220,13 +213,16 @@ export default function AddressScreen() {
             <Text style={[styles.labelDescription, { color: colors.textSecondary }]}>
               If different from physical address (optional)
             </Text>
-            <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Mail size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.postalAddress}
+                value={kycData.address.postalAddress}
                 onChangeText={(value) => updateFormData('postalAddress', value)}
-                placeholder="P.O. Box address (optional)"
+                placeholder="e.g., P.O. Box 12345"
                 placeholderTextColor={colors.textSecondary}
               />
             </View>
@@ -237,13 +233,16 @@ export default function AddressScreen() {
             <Text style={[styles.label, { color: colors.text }]}>
               Postal Code
             </Text>
-            <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              borderColor: colors.border,
+              backgroundColor: colors.surface 
+            }]}>
               <Mail size={20} color={colors.textSecondary} />
               <TextInput
                 style={[styles.textInput, { color: colors.text }]}
-                value={formData.postalCode}
+                value={kycData.address.postalCode}
                 onChangeText={(value) => updateFormData('postalCode', value)}
-                placeholder="Postal code (optional)"
+                placeholder="e.g., 00100"
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="numeric"
               />
@@ -352,10 +351,11 @@ const styles = StyleSheet.create({
   labelDescription: {
     fontSize: 14,
     marginBottom: 8,
+    lineHeight: 18,
   },
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -380,27 +380,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
-  countryContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioButtonInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   countryText: {
     fontSize: 16,
-    flex: 1,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   errorText: {
     fontSize: 14,
@@ -419,7 +402,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 14,

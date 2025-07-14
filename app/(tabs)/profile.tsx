@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,113 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
+  RefreshControl,
 } from 'react-native';
-import { User, Settings, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, ChevronRight, Phone, MessageCircle, Mail } from 'lucide-react-native';
+import { User as UserIcon, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, Phone, MessageCircle, Mail, Bell, Lock, Globe, Star, Award, TrendingUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
+import type { LucideIcon } from 'lucide-react-native';
+import ProfileCard from '@/components/profile/ProfileCard';
+import SettingsList from '@/components/profile/SettingsList';
+import { apiFetch } from '@/services/apiFetch';
+
+interface ProfileStat {
+  label: string;
+  value: string;
+  icon: any;
+  color: string;
+}
+
+interface ProfileOption {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  onPress?: () => void;
+  badge?: boolean;
+  badgeColor?: string;
+  hasSwitch?: boolean;
+  switchValue?: boolean;
+  onSwitchChange?: () => void;
+}
 
 export default function ProfileScreen() {
   const { colors, isDarkMode, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const [kycStatus] = useState<'pending' | 'approved' | 'rejected'>('approved');
+  const [refreshing, setRefreshing] = useState(false);
+  const [kycInfo, setKycInfo] = useState<any>(null);
+
+  // Real stats state
+  const [stats, setStats] = useState<any>({ balance: 0, invested: 0, goals: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Fetch stats from backend and cache name
+  const fetchStats = async () => {
+    if (!user?.id) return;
+    setStatsLoading(true);
+    try {
+      // Use apiFetch for token freshness
+      const walletRes = await apiFetch(`/api/profile/${user.id}`);
+      const walletData = await walletRes.json();
+      if (walletData?.error && (walletData.error.includes('token') || walletData.error.includes('Session expired'))) {
+        Alert.alert('Session expired', 'Please log in again.');
+        await logout();
+        router.replace('/auth/login');
+        return;
+      }
+      // Do NOT cache name locally, always use live data
+      const invRes = await apiFetch('/api/portfolio');
+      const invData = await invRes.json();
+      const goalsRes = await apiFetch('/api/goals');
+      const goalsData = await goalsRes.json();
+      setStats({
+        ...walletData,
+        balance: walletData?.balance ?? 0,
+        invested: Array.isArray(invData) ? invData.reduce((sum: number, inv: any) => sum + (inv.amount ?? 0), 0) : 0,
+        goals: Array.isArray(goalsData) ? goalsData.length : 0,
+      });
+    } catch (err: any) {
+      console.error('Error fetching stats:', err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const profileStats: ProfileStat[] = [
+    {
+      label: 'Portfolio Value',
+      value: statsLoading ? 'Loading...' : `KES ${stats.balance.toLocaleString()}`,
+      icon: TrendingUp,
+      color: colors.primary,
+    },
+    {
+      label: 'Total Invested',
+      value: statsLoading ? 'Loading...' : `KES ${stats.invested.toLocaleString()}`,
+      icon: Award,
+      color: colors.success,
+    },
+    {
+      label: 'Active Goals',
+      value: statsLoading ? 'Loading...' : `${stats.goals}`,
+      icon: Star,
+      color: colors.warning,
+    },
+  ];
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 2000);
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -27,7 +124,7 @@ export default function ProfileScreen() {
           text: 'Logout',
           style: 'destructive',
           onPress: () => {
-            router.replace('/');
+            logout().then(() => router.replace('/welcome'));
           },
         },
       ]
@@ -56,16 +153,21 @@ export default function ProfileScreen() {
     }
   };
 
+  // Navigate to KYC info page
+  const fetchKycInfo = async () => {
+    router.push('/kyc/status');
+  };
+
   const profileSections = [
     {
-      title: 'Account',
+      title: 'Account Management',
       items: [
         {
           id: 'personal-info',
-          icon: User,
+          icon: UserIcon,
           title: 'Personal Information',
-          subtitle: 'Update your personal details',
-          onPress: () => Alert.alert('Info', 'Personal information management coming soon'),
+          subtitle: 'View your KYC details',
+          onPress: fetchKycInfo,
         },
         {
           id: 'kyc-status',
@@ -74,7 +176,7 @@ export default function ProfileScreen() {
           subtitle: getKycStatusText(),
           badge: true,
           badgeColor: getKycStatusColor(),
-          onPress: () => Alert.alert('KYC Status', `Your KYC status is: ${getKycStatusText()}`),
+          onPress: () => router.push('/kyc/status'),
         },
         {
           id: 'bank-details',
@@ -83,10 +185,17 @@ export default function ProfileScreen() {
           subtitle: 'Manage withdrawal methods',
           onPress: () => Alert.alert('Info', 'Bank details management coming soon'),
         },
+        {
+          id: 'security',
+          icon: Lock,
+          title: 'Security Settings',
+          subtitle: 'Password, 2FA, and security',
+          onPress: () => router.push('/two-factor-setup'),
+        },
       ],
     },
     {
-      title: 'App Settings',
+      title: 'App Preferences',
       items: [
         {
           id: 'theme',
@@ -99,15 +208,22 @@ export default function ProfileScreen() {
         },
         {
           id: 'notifications',
-          icon: Settings,
-          title: 'Notification Settings',
+          icon: Bell,
+          title: 'Notifications',
           subtitle: 'Manage your notifications',
           onPress: () => Alert.alert('Info', 'Notification settings coming soon'),
+        },
+        {
+          id: 'language',
+          icon: Globe,
+          title: 'Language',
+          subtitle: 'English (Kenya)',
+          onPress: () => Alert.alert('Info', 'Language settings coming soon'),
         },
       ],
     },
     {
-      title: 'Legal & Support',
+      title: 'Legal & Compliance',
       items: [
         {
           id: 'terms',
@@ -123,10 +239,17 @@ export default function ProfileScreen() {
           subtitle: 'Read our privacy policy',
           onPress: () => Alert.alert('Info', 'Privacy Policy coming soon'),
         },
+        {
+          id: 'regulatory',
+          icon: Shield,
+          title: 'Regulatory Information',
+          subtitle: 'Compliance and licensing',
+          onPress: () => Alert.alert('Info', 'Regulatory information coming soon'),
+        },
       ],
     },
     {
-      title: 'Get Help',
+      title: 'Support & Help',
       items: [
         {
           id: 'phone',
@@ -159,7 +282,6 @@ export default function ProfileScreen() {
       ],
     },
   ];
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -167,115 +289,69 @@ export default function ProfileScreen() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           Profile
         </Text>
+        {/* Removed gear/settings icon */}
       </View>
 
-      <ScrollView style={styles.content}>
-        {/* User Info Card */}
-        <View style={[styles.userCard, { backgroundColor: colors.card }]}>
-          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.avatarText, { color: colors.background }]}>
-              JD
-            </Text>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: colors.text }]}>
-              John Doe
-            </Text>
-            <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-              john.doe@example.com
-            </Text>
-            <View style={styles.kycBadge}>
-              <View
-                style={[
-                  styles.kycIndicator,
-                  { backgroundColor: getKycStatusColor() },
-                ]}
-              />
-              <Text style={[styles.kycText, { color: getKycStatusColor() }]}>
-                {getKycStatusText()}
-              </Text>
-            </View>
-          </View>
+      <ScrollView 
+        style={[styles.content, { paddingTop: 8, paddingBottom: 40 }]} // pull up content, add bottom space
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* User Profile Card - break up info for clarity */}
+        <View style={{ marginBottom: 16 }}>
+          <ProfileCard
+            user={{
+              ...user,
+              firstName: stats?.first_name ?? user?.firstName ?? '',
+              lastName: stats?.last_name ?? user?.lastName ?? '',
+            }}
+            kycStatus={kycStatus}
+            getKycStatusColor={getKycStatusColor}
+            getKycStatusText={getKycStatusText}
+            profileStats={profileStats}
+            colors={colors}
+          />
+          {/* Example: show balance, goals, etc. as separate cards or rows here if needed */}
         </View>
 
         {/* Profile Sections */}
-        {profileSections.map((section, sectionIndex) => (
-          <View key={sectionIndex} style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {section.title}
-            </Text>
-            <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
-              {section.items.map((item, itemIndex) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.settingItem,
-                    itemIndex < section.items.length - 1 && {
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.border,
-                    },
-                  ]}
-                  onPress={item.onPress}
-                  disabled={item.hasSwitch}
-                >
-                  <View style={styles.settingLeft}>
-                    <View style={[styles.settingIcon, { backgroundColor: colors.surface }]}>
-                      <item.icon size={20} color={colors.text} />
-                    </View>
-                    <View style={styles.settingText}>
-                      <Text style={[styles.settingTitle, { color: colors.text }]}>
-                        {item.title}
-                      </Text>
-                      <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>
-                        {item.subtitle}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.settingRight}>
-                    {item.badge && (
-                      <View
-                        style={[
-                          styles.badge,
-                          { backgroundColor: item.badgeColor + '20' },
-                        ]}
-                      >
-                        <Text style={[styles.badgeText, { color: item.badgeColor }]}>
-                          ●
-                        </Text>
-                      </View>
-                    )}
-                    {item.hasSwitch ? (
-                      <Switch
-                        value={item.switchValue}
-                        onValueChange={item.onSwitchChange}
-                        trackColor={{
-                          false: colors.border,
-                          true: colors.primary + '40',
-                        }}
-                        thumbColor={item.switchValue ? colors.primary : colors.textSecondary}
-                      />
-                    ) : (
-                      <ChevronRight size={20} color={colors.textSecondary} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        ))}
+        <SettingsList sections={profileSections} colors={colors} />
 
-        {/* Logout Button */}
-        <View style={styles.logoutSection}>
-          <TouchableOpacity
-            style={[styles.logoutButton, { backgroundColor: colors.error + '10' }]}
-            onPress={handleLogout}
-          >
-            <LogOut size={20} color={colors.error} />
-            <Text style={[styles.logoutText, { color: colors.error }]}>
-              Logout
-            </Text>
-          </TouchableOpacity>
+        {/* Quick Actions - remove Export Data, balance layout */}
+        <View style={styles.quickActionsSection}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Quick Actions
+          </Text>
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity
+              style={[styles.quickActionCard, { backgroundColor: colors.primary + '10' }]}
+              onPress={() => router.push('/kyc')}
+            >
+              <Shield size={24} color={colors.primary} />
+              <Text style={[styles.quickActionText, { color: colors.primary }]}>
+                Complete KYC
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.quickActionCard, { backgroundColor: colors.warning + '10' }]}
+            >
+              <HelpCircle size={24} color={colors.warning} />
+              <Text style={[styles.quickActionText, { color: colors.warning }]}>
+                Get Help
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.quickActionCard, { backgroundColor: colors.error + '10' }]}
+              onPress={handleLogout}
+            >
+              <LogOut size={24} color={colors.error} />
+              <Text style={[styles.quickActionText, { color: colors.error }]}>
+                Sign Out
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* App Version */}
@@ -283,7 +359,12 @@ export default function ProfileScreen() {
           <Text style={[styles.versionText, { color: colors.textSecondary }]}>
             Estien Capital v1.0.0
           </Text>
+          <Text style={[styles.buildText, { color: colors.textSecondary }]}>
+            Build 2024.01.15
+          </Text>
         </View>
+
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </View>
   );
@@ -294,85 +375,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 60,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 28, // was 60
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 12, // was 24
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20, // was 28
     fontWeight: 'bold',
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
   },
-  userCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 32,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  kycBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  
-  kycIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  kycText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 12,
     paddingHorizontal: 4,
   },
   sectionContent: {
-    borderRadius: 12,
-    elevation: 1,
+    borderRadius: 16,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 1,
+    shadowRadius: 2,
   },
   settingItem: {
     flexDirection: 'row',
@@ -386,9 +426,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -398,11 +438,11 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     marginBottom: 2,
   },
   settingSubtitle: {
-    fontSize: 12,
+    fontSize: 14,
   },
   settingRight: {
     flexDirection: 'row',
@@ -418,27 +458,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  logoutSection: {
-    marginTop: 20,
-    marginBottom: 40,
+  quickActionsSection: {
+    marginBottom: 32,
   },
-  logoutButton: {
+  quickActionsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  logoutText: {
-    fontSize: 16,
+  quickActionCard: {
+    width: '48%',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 16,
+  },
+  quickActionText: {
+    fontSize: 14,
     fontWeight: '600',
+    marginTop: 8,
+    textAlign: 'center',
   },
   versionSection: {
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingVertical: 20,
   },
   versionText: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  buildText: {
     fontSize: 12,
+  },
+  bottomSpacing: {
+    height: 40,
   },
 });

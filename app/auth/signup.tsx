@@ -2,65 +2,266 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Eye, EyeOff, ArrowLeft, Check } from 'lucide-react-native';
+import { Eye, EyeOff, ArrowLeft, Check, Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import GroupAccountMemberForm from '@/components/profile/GroupAccountMemberForm';
 
-type AccountType = 'individual' | 'joint';
+type AccountType = 'individual' | 'group';
+
+interface GroupMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  accountNumber: string;
+  role: 'admin' | 'member';
+  isAccountManager: boolean;
+}
 
 export default function SignupScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [accountType, setAccountType] = useState<AccountType>('individual');
+  const { register, isLoading } = useAuth();
+  
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    accountType: 'individual' as AccountType,
+    groupName: '',
+    groupType: 'sacco' as 'joint' | 'sacco' | 'chama' | 'investment_club',
+  });
+
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  const [selectedAccountManagers, setSelectedAccountManagers] = useState<string[]>([]);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [groupErrors, setGroupErrors] = useState<Record<string, string>>({});
+
+  // Generate unique account number for group members
+  const generateAccountNumber = () => {
+    const timestamp = Date.now().toString().slice(-6);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `SA${timestamp}${random}`;
+  };
+
+  // Add new group member
+  const addGroupMember = () => {
+    const newMember: GroupMember = {
+      id: Date.now().toString(),
+      firstName: '',
+      lastName: '',
+      email: '',
+      phoneNumber: '',
+      accountNumber: generateAccountNumber(),
+      role: 'member',
+      isAccountManager: false,
+    };
+    setGroupMembers([...groupMembers, newMember]);
+  };
+
+  // Remove group member
+  const removeGroupMember = (id: string) => {
+    setGroupMembers(groupMembers.filter(member => member.id !== id));
+    setSelectedAccountManagers(selectedAccountManagers.filter(managerId => managerId !== id));
+  };
+
+  // Update group member
+  const updateGroupMember = (id: string, field: keyof GroupMember, value: string | boolean) => {
+    setGroupMembers(groupMembers.map(member => 
+      member.id === id ? { ...member, [field]: value } : member
+    ));
+  };
+
+  // Toggle account manager
+  const toggleAccountManager = (id: string) => {
+    const isCurrentManager = selectedAccountManagers.includes(id);
+    if (isCurrentManager) {
+      setSelectedAccountManagers(selectedAccountManagers.filter(managerId => managerId !== id));
+      updateGroupMember(id, 'isAccountManager', false);
+    } else {
+      setSelectedAccountManagers([...selectedAccountManagers, id]);
+      updateGroupMember(id, 'isAccountManager', true);
+    }
+  };
+
+  const updateFormData = (field: string, value: string) => {
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      
+      // Reset group data when switching account types
+      if (field === 'accountType' && value === 'individual') {
+        setGroupMembers([]);
+        setSelectedAccountManagers([]);
+        setGroupErrors({});
+      }
+      
+      // Auto-add one member for joint accounts
+      if (field === 'groupType' && value === 'joint' && groupMembers.length === 0) {
+        addGroupMember();
+      }
+      
+      return updated;
+    });
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters long';
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    // Group account validation
+    if (formData.accountType === 'group') {
+      if (!formData.groupName.trim()) {
+        newErrors.groupName = 'Group name is required';
+      }
+      
+      // Different minimum requirements based on group type
+      let minMembers: number;
+      
+      if (formData.groupType === 'joint') {
+        minMembers = 1;
+      } else {
+        // For SACCO, Chama, Investment Club - require at least 2 additional members
+        minMembers = 2;
+      }
+      
+      if (groupMembers.length < minMembers) {
+        if (formData.groupType === 'joint') {
+          newErrors.groupMembers = 'Please add the second account holder';
+        } else {
+          newErrors.groupMembers = `At least ${minMembers} additional members are required for group accounts`;
+        }
+      }
+      
+      // Check maximum limits
+      if (formData.groupType === 'joint' && groupMembers.length > 1) {
+        newErrors.groupMembers = 'Joint accounts can only have 2 people total';
+      } else if (formData.groupType !== 'joint' && groupMembers.length > 50) {
+        newErrors.groupMembers = 'Maximum 50 members allowed';
+      }
+
+      // For non-joint accounts, require at least one account manager
+      if (formData.groupType !== 'joint' && selectedAccountManagers.length === 0) {
+        newErrors.accountManagers = 'At least one account manager must be selected';
+      }
+      
+      // For groups with 7+ members, require at least 2 account managers
+      if (formData.groupType !== 'joint' && (groupMembers.length + 1) >= 7 && selectedAccountManagers.length < 2) {
+        newErrors.accountManagers = 'Groups with 7 or more members must have at least 2 account managers';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateGroupMembers = () => {
+    const newErrors: Record<string, string> = {};
+    
+    groupMembers.forEach((member, index) => {
+      if (!member.firstName.trim()) {
+        newErrors[`member_${index}_firstName`] = 'First name is required';
+      }
+      if (!member.lastName.trim()) {
+        newErrors[`member_${index}_lastName`] = 'Last name is required';
+      }
+      if (!member.email.trim()) {
+        newErrors[`member_${index}_email`] = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(member.email)) {
+        newErrors[`member_${index}_email`] = 'Please enter a valid email address';
+      }
+      if (!member.phoneNumber.trim()) {
+        newErrors[`member_${index}_phoneNumber`] = 'Phone number is required';
+      }
+    });
+
+    setGroupErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSignup = async () => {
-    if (!email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+    if (!validateForm()) return;
+    if (formData.accountType === 'group' && !validateGroupMembers()) return;
 
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (password.length < 8) {
-      Alert.alert('Error', 'Password must be at least 8 characters long');
-      return;
-    }
-
-    setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await register({
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        accountType: formData.accountType,
+        groupName: formData.accountType === 'group' ? formData.groupName : undefined,
+        groupType: formData.accountType === 'group' ? formData.groupType : undefined,
+        groupMembers: formData.accountType === 'group' ? groupMembers : undefined,
+      });
+      
       Alert.alert(
         'Account Created',
-        'Your account has been created successfully. Please complete your KYC verification.',
+        formData.accountType === 'group' 
+          ? 'Your group account has been created successfully. Members will receive email invitations to complete their setup.'
+          : 'Your account has been created successfully. Please complete your KYC verification.',
         [
           {
             text: 'Continue',
-            onPress: () => router.push('/(tabs)'),
+            onPress: () => router.replace('/(tabs)'),
           },
         ]
       );
-    }, 1500);
+    } catch (error) {
+      Alert.alert(
+        'Registration Failed',
+        error instanceof Error ? error.message : 'An unexpected error occurred'
+      );
+    }
   };
+
+  if (isLoading) {
+    return <LoadingSpinner text="Creating your account..." overlay />;
+  }
 
   return (
     <LinearGradient
@@ -72,22 +273,16 @@ export default function SignupScreen() {
         style={styles.keyboardView}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={24} color={colors.text} />
-          </TouchableOpacity>
-
-          <View style={styles.logoContainer}>
-            <View style={[styles.logoPlaceholder, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.logoText, { color: colors.background }]}>
-                ESTIEN
-              </Text>
-              <Text style={[styles.logoSubText, { color: colors.background }]}>
-                CAPITAL
-              </Text>
-            </View>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/auth/login');
+              }
+            }}>
+              <ArrowLeft size={24} color={colors.text} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.formContainer}>
@@ -96,6 +291,7 @@ export default function SignupScreen() {
               Join Estien Capital and start investing
             </Text>
 
+            {/* Account Type Selection */}
             <View style={styles.accountTypeContainer}>
               <Text style={[styles.label, { color: colors.text }]}>Account Type</Text>
               <View style={styles.accountTypeButtons}>
@@ -103,25 +299,18 @@ export default function SignupScreen() {
                   style={[
                     styles.accountTypeButton,
                     {
-                      backgroundColor: accountType === 'individual' ? colors.primary : colors.card,
-                      borderColor: accountType === 'individual' ? colors.primary : colors.border,
+                      backgroundColor: formData.accountType === 'individual' ? colors.primary : colors.card,
+                      borderColor: formData.accountType === 'individual' ? colors.primary : colors.border,
                     },
                   ]}
-                  onPress={() => setAccountType('individual')}
+                  onPress={() => updateFormData('accountType', 'individual')}
                 >
                   <View style={styles.radioContainer}>
-                    {accountType === 'individual' && (
+                    {formData.accountType === 'individual' && (
                       <Check size={16} color={colors.background} />
                     )}
                   </View>
-                  <Text
-                    style={[
-                      styles.accountTypeText,
-                      {
-                        color: accountType === 'individual' ? colors.background : colors.text,
-                      },
-                    ]}
-                  >
+                  <Text style={[styles.accountTypeText, { color: formData.accountType === 'individual' ? colors.background : colors.text }]}>
                     Individual Account
                   </Text>
                 </TouchableOpacity>
@@ -130,142 +319,203 @@ export default function SignupScreen() {
                   style={[
                     styles.accountTypeButton,
                     {
-                      backgroundColor: accountType === 'joint' ? colors.primary : colors.card,
-                      borderColor: accountType === 'joint' ? colors.primary : colors.border,
+                      backgroundColor: formData.accountType === 'group' ? colors.primary : colors.card,
+                      borderColor: formData.accountType === 'group' ? colors.primary : colors.border,
                     },
                   ]}
-                  onPress={() => setAccountType('joint')}
+                  onPress={() => updateFormData('accountType', 'group')}
                 >
                   <View style={styles.radioContainer}>
-                    {accountType === 'joint' && (
+                    {formData.accountType === 'group' && (
                       <Check size={16} color={colors.background} />
                     )}
                   </View>
-                  <Text
-                    style={[
-                      styles.accountTypeText,
-                      {
-                        color: accountType === 'joint' ? colors.background : colors.text,
-                      },
-                    ]}
-                  >
-                    Joint Account
+                  <Text style={[styles.accountTypeText, { color: formData.accountType === 'group' ? colors.background : colors.text }]}>
+                    Group Account
                   </Text>
                 </TouchableOpacity>
               </View>
-              
-              {accountType === 'joint' && (
-                <Text style={[styles.jointAccountNote, { color: colors.textSecondary }]}>
-                  Joint accounts require KYC verification for all account holders
-                </Text>
-              )}
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>Email Address</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    color: colors.text,
-                  },
-                ]}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-            </View>
+            {/* Group Type Selection */}
+            {formData.accountType === 'group' && (
+              <View style={styles.groupTypeContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>Group Type</Text>
+                <View style={styles.groupTypeButtons}>
+                  {[
+                    { value: 'joint' as const, label: 'Joint Account (2 people)' },
+                    { value: 'sacco' as const, label: 'SACCO' },
+                    { value: 'chama' as const, label: 'Chama' },
+                    { value: 'investment_club' as const, label: 'Investment Club' },
+                  ].map((type) => (
+                    <TouchableOpacity
+                      key={type.value}
+                      style={[
+                        styles.groupTypeButton,
+                        {
+                          backgroundColor: formData.groupType === type.value ? colors.primary : colors.surface,
+                          borderColor: formData.groupType === type.value ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => updateFormData('groupType', type.value)}
+                    >
+                      <Text style={[
+                        styles.groupTypeText,
+                        { color: formData.groupType === type.value ? colors.background : colors.text }
+                      ]}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={[
-                    styles.passwordInput,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Create a password"
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry={!showPassword}
-                  autoComplete="new-password"
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
+            {/* Personal Information */}
+            <Input
+              label="First Name"
+              value={formData.firstName}
+              onChangeText={(value) => updateFormData('firstName', value)}
+              placeholder="Enter your first name"
+              error={errors.firstName}
+              autoCapitalize="words"
+            />
+
+            <Input
+              label="Last Name"
+              value={formData.lastName}
+              onChangeText={(value) => updateFormData('lastName', value)}
+              placeholder="Enter your last name"
+              error={errors.lastName}
+              autoCapitalize="words"
+            />
+
+            <Input
+              label="Email Address"
+              value={formData.email}
+              onChangeText={(value) => updateFormData('email', value)}
+              placeholder="Enter your email address"
+              error={errors.email}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+
+            <Input
+              label="Password"
+              value={formData.password}
+              onChangeText={(value) => updateFormData('password', value)}
+              placeholder="Enter your password"
+              error={errors.password}
+              secureTextEntry={!showPassword}
+              rightIcon={
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   {showPassword ? (
                     <EyeOff size={20} color={colors.textSecondary} />
                   ) : (
                     <Eye size={20} color={colors.textSecondary} />
                   )}
                 </TouchableOpacity>
-              </View>
-            </View>
+              }
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>Confirm Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={[
-                    styles.passwordInput,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm your password"
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry={!showConfirmPassword}
-                  autoComplete="new-password"
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
+            <Input
+              label="Confirm Password"
+              value={formData.confirmPassword}
+              onChangeText={(value) => updateFormData('confirmPassword', value)}
+              placeholder="Confirm your password"
+              error={errors.confirmPassword}
+              secureTextEntry={!showConfirmPassword}
+              rightIcon={
+                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                   {showConfirmPassword ? (
                     <EyeOff size={20} color={colors.textSecondary} />
                   ) : (
                     <Eye size={20} color={colors.textSecondary} />
                   )}
                 </TouchableOpacity>
-              </View>
-            </View>
+              }
+            />
 
-            <TouchableOpacity
-              style={[
-                styles.signupButton,
-                { backgroundColor: colors.primary },
-                isLoading && styles.buttonDisabled,
-              ]}
+            {/* Group Account Details */}
+            {formData.accountType === 'group' && (
+              <View style={styles.groupDetailsContainer}>
+                <Input
+                  label="Group Name"
+                  value={formData.groupName}
+                  onChangeText={(value) => updateFormData('groupName', value)}
+                  placeholder={`Enter ${formData.groupType === 'joint' ? 'joint account' : formData.groupType} name`}
+                  error={errors.groupName}
+                />
+
+                <View style={styles.groupMembersSection}>
+                  <View style={styles.groupMembersHeader}>
+                    <Text style={[styles.label, { color: colors.text }]}>
+                      {formData.groupType === 'joint' ? 'Second Account Holder' : 'Group Members'}
+                    </Text>
+                    {/* Only show Add button for joint accounts when no members exist, or for non-joint accounts */}
+                    {((formData.groupType === 'joint' && groupMembers.length === 0) || 
+                      (formData.groupType !== 'joint')) && (
+                      <TouchableOpacity
+                        style={[styles.addMemberButton, { backgroundColor: colors.primary }]}
+                        onPress={addGroupMember}
+                      >
+                        <Plus size={16} color={colors.background} />
+                        <Text style={[styles.addMemberText, { color: colors.background }]}>
+                          {formData.groupType === 'joint' ? 'Add Holder' : 'Add Member'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Account manager requirement info for large groups */}
+                  {formData.groupType !== 'joint' && (groupMembers.length + 1) >= 6 && (
+                    <View style={[styles.infoContainer, { backgroundColor: colors.warning + '20', borderColor: colors.warning }]}>
+                      <Text style={[styles.infoText, { color: colors.text }]}>
+                        💡 Groups with 7+ members require at least 2 account managers for enhanced security
+                      </Text>
+                    </View>
+                  )}
+
+                  {groupMembers.map((member, index) => (
+                    <GroupAccountMemberForm
+                      key={member.id}
+                      member={member}
+                      index={index}
+                      errors={groupErrors}
+                      onChange={updateGroupMember}
+                      onRemove={removeGroupMember}
+                      onToggleManager={toggleAccountManager}
+                      colors={colors}
+                      canRemove={formData.groupType !== 'joint' || groupMembers.length > 1}
+                      isJointAccount={formData.groupType === 'joint'}
+                    />
+                  ))}
+
+                  {errors.groupMembers && (
+                    <Text style={[styles.errorText, { color: colors.error }]}>{errors.groupMembers}</Text>
+                  )}
+                  {errors.accountManagers && (
+                    <Text style={[styles.errorText, { color: colors.error }]}>{errors.accountManagers}</Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            <Button
+              title="Create Account"
               onPress={handleSignup}
               disabled={isLoading}
-            >
-              <Text style={[styles.signupButtonText, { color: colors.background }]}>
-                {isLoading ? 'Creating Account...' : 'Create Account'}
-              </Text>
-            </TouchableOpacity>
+              fullWidth
+              style={styles.signupButton}
+            />
 
-            <View style={styles.loginContainer}>
+            <View style={styles.loginLink}>
               <Text style={[styles.loginText, { color: colors.textSecondary }]}>
                 Already have an account?{' '}
               </Text>
-              <TouchableOpacity onPress={() => router.push('/auth/login')}>
-                <Text style={[styles.loginLink, { color: colors.primary }]}>
+              <TouchableOpacity onPress={() => router.replace('/auth/login')}>
+                <Text style={[styles.loginLinkText, { color: colors.primary }]}>
                   Sign In
                 </Text>
               </TouchableOpacity>
@@ -286,60 +536,33 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+  },
+  header: {
     paddingTop: 60,
-    paddingBottom: 40,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logoPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  logoText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
-  logoSubText: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 1,
-    marginTop: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 20,
   },
   formContainer: {
     flex: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    textAlign: 'center',
     marginBottom: 32,
   },
   accountTypeContainer: {
     marginBottom: 24,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
   },
   accountTypeButtons: {
     gap: 12,
@@ -355,80 +578,82 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   accountTypeText: {
     fontSize: 16,
     fontWeight: '500',
   },
-  jointAccountNote: {
+  groupTypeContainer: {
+    marginBottom: 24,
+  },
+  groupTypeButtons: {
+    gap: 8,
+  },
+  groupTypeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  groupTypeText: {
     fontSize: 14,
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
     fontWeight: '500',
-    marginBottom: 8,
+    textAlign: 'center',
   },
-  input: {
-    height: 52,
+  groupDetailsContainer: {
+    marginBottom: 24,
+  },
+  groupMembersSection: {
+    marginTop: 16,
+  },
+  groupMembersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addMemberButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  addMemberText: {
+    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  infoContainer: {
+    padding: 12,
+    borderRadius: 8,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
+    marginBottom: 16,
   },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    height: 52,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingRight: 48,
-    fontSize: 16,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
+  infoText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   signupButton: {
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-    marginTop: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    marginTop: 8,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  signupButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  loginContainer: {
+  loginLink: {
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: 24,
   },
   loginText: {
     fontSize: 16,
   },
-  loginLink: {
+  loginLinkText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
 });

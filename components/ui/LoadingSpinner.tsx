@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface LoadingSpinnerProps {
@@ -8,11 +8,15 @@ interface LoadingSpinnerProps {
   overlay?: boolean;
 }
 
-export function LoadingSpinner({ size = 'large', text, overlay = false }: LoadingSpinnerProps) {
+export function LoadingSpinner({ size = 'large', text, overlay = false }: Readonly<LoadingSpinnerProps>) {
   const { colors } = useTheme();
 
   const content = (
-    <View style={[styles.container, overlay && styles.overlay]}>
+    <View style={[
+      styles.container, 
+      overlay && styles.overlay,
+      overlay && Platform.OS === 'ios' && styles.iosOverlay
+    ]}>
       <ActivityIndicator size={size} color={colors.primary} />
       {text && (
         <Text style={[styles.text, { color: colors.text }]}>{text}</Text>
@@ -37,6 +41,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 1000,
+  },
+  iosOverlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   text: {
     marginTop: 12,

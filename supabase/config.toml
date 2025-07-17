@@ -1,0 +1,21 @@
+# Supabase CLI Config
+project_id = "zyacqzzjvijtakpncpfx"
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://yourdomain.com"]
+jwt_expiry = 3600
+enable_manual_linking = false
+
+[db]
+# Removed 'use_pooler' — deprecated
+
+[functions.verify_jwt]
+# If you need to configure this, add valid options
+# Example: included_headers = ["authorization"]
+
+[auth.email]
+enable_signup = true
+
+[auth.external.google]
+enabled = false

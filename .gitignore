@@ -36,8 +36,38 @@ backups
 # typescript
 *.tsbuildinfo
 
+# temporary and generated files
 flow.md
 backend.md
 Estien Capital App Development Requirements (1)
 Estien Capital App Development Requirements (1).txt
-admin
+
+# deployment and setup scripts (not needed in repo)
+deploy-*.sh
+generate-*.js
+verify-*.js
+create-*.js
+*-setup.md
+*-auth-setup.md
+DEPLOYMENT_GUIDE.md
+SECURE_EMAIL_IMPLEMENTATION.md
+
+# development tools
+.qodo/
+.bolt/
+
+# SQL files (Supabase handles migrations)
+*.sql
+**/migrations/*.sql
+*-schema.sql
+*-tables.sql
+
+# Supabase temp files
+supabase/.temp/
+supabase/**/*.temp
+supabase/**/temp/
+
+# Documentation files (except main README)
+backend/README.md
+supabase/functions/README.md
+mermaidCharts/*.md

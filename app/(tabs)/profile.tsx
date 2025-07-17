@@ -45,63 +45,98 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [kycInfo, setKycInfo] = useState<any>(null);
 
-  // Real stats state
+  // Real stats state - start with defaults instead of loading
   const [stats, setStats] = useState<any>({ balance: 0, invested: 0, goals: 0 });
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false); // Don't show loading initially
 
-  // Fetch stats from backend and cache name
+  // Fetch stats from backend (optional, for enhanced data)
   const fetchStats = async () => {
     if (!user?.id) return;
     setStatsLoading(true);
     try {
-      // Use apiFetch for token freshness
+      // Use apiFetch for token freshness - but handle failures gracefully
       const walletRes = await apiFetch(`/api/profile/${user.id}`);
-      const walletData = await walletRes.json();
-      if (walletData?.error && (walletData.error.includes('token') || walletData.error.includes('Session expired'))) {
-        Alert.alert('Session expired', 'Please log in again.');
-        await logout();
-        router.replace('/auth/login');
+      
+      // Check if response is JSON (not HTML error page)
+      const contentType = walletRes.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('Profile API returned non-JSON response, using cached data');
+        setStatsLoading(false);
         return;
       }
-      // Do NOT cache name locally, always use live data
-      const invRes = await apiFetch('/api/portfolio');
-      const invData = await invRes.json();
-      const goalsRes = await apiFetch('/api/goals');
-      const goalsData = await goalsRes.json();
+      
+      const walletData = await walletRes.json();
+      if (walletData?.error) {
+        console.warn('Profile API error:', walletData.error);
+        setStatsLoading(false);
+        return;
+      }
+      
+      // Try to get portfolio and goals data, but don't fail if they don't work
+      let investedAmount = 0;
+      let goalsCount = 0;
+      
+      try {
+        const invRes = await apiFetch('/api/portfolio');
+        if (invRes.headers.get('content-type')?.includes('application/json')) {
+          const invData = await invRes.json();
+          if (Array.isArray(invData)) {
+            investedAmount = invData.reduce((sum: number, inv: any) => sum + (inv.amount ?? 0), 0);
+          }
+        }
+      } catch (err) {
+        console.warn('Portfolio API failed, using default');
+      }
+      
+      try {
+        const goalsRes = await apiFetch('/api/goals');
+        if (goalsRes.headers.get('content-type')?.includes('application/json')) {
+          const goalsData = await goalsRes.json();
+          if (Array.isArray(goalsData)) {
+            goalsCount = goalsData.length;
+          }
+        }
+      } catch (err) {
+        console.warn('Goals API failed, using default');
+      }
+      
       setStats({
         ...walletData,
         balance: walletData?.balance ?? 0,
-        invested: Array.isArray(invData) ? invData.reduce((sum: number, inv: any) => sum + (inv.amount ?? 0), 0) : 0,
-        goals: Array.isArray(goalsData) ? goalsData.length : 0,
+        invested: investedAmount,
+        goals: goalsCount,
       });
     } catch (err: any) {
-      console.error('Error fetching stats:', err);
+      console.warn('Stats fetch failed, using cached data:', err.message);
     } finally {
       setStatsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStats();
+    // Fetch stats in background without blocking UI
+    if (user?.id) {
+      fetchStats();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const profileStats: ProfileStat[] = [
     {
       label: 'Portfolio Value',
-      value: statsLoading ? 'Loading...' : `KES ${stats.balance.toLocaleString()}`,
+      value: statsLoading ? `KES ${(stats.balance || 0).toLocaleString()}` : `KES ${stats.balance.toLocaleString()}`,
       icon: TrendingUp,
       color: colors.primary,
     },
     {
       label: 'Total Invested',
-      value: statsLoading ? 'Loading...' : `KES ${stats.invested.toLocaleString()}`,
+      value: statsLoading ? `KES ${(stats.invested || 0).toLocaleString()}` : `KES ${stats.invested.toLocaleString()}`,
       icon: Award,
       color: colors.success,
     },
     {
       label: 'Active Goals',
-      value: statsLoading ? 'Loading...' : `${stats.goals}`,
+      value: statsLoading ? `${stats.goals || 0}` : `${stats.goals}`,
       icon: Star,
       color: colors.warning,
     },
@@ -304,8 +339,9 @@ export default function ProfileScreen() {
           <ProfileCard
             user={{
               ...user,
-              firstName: stats?.first_name ?? user?.firstName ?? '',
-              lastName: stats?.last_name ?? user?.lastName ?? '',
+              // Prioritize cached user data, fallback to API data only if available
+              firstName: user?.firstName ?? stats?.first_name ?? '',
+              lastName: user?.lastName ?? stats?.last_name ?? '',
             }}
             kycStatus={kycStatus}
             getKycStatusColor={getKycStatusColor}

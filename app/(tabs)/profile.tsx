@@ -199,6 +199,21 @@ export default function ProfileScreen() {
       title: 'Account Management',
       items: [
         {
+          id: 'complete-kyc',
+          icon: Shield,
+          title: 'Complete KYC',
+          subtitle: 'Complete your verification process',
+          onPress: () => router.push('/kyc'),
+          badge: true,
+          badgeColor: colors.warning,
+          customStyle: {
+            borderWidth: 2,
+            borderColor: colors.warning,
+            borderRadius: 12,
+            marginVertical: 4,
+          },
+        },
+        {
           id: 'personal-info',
           icon: UserIcon,
           title: 'Personal Information',
@@ -356,6 +371,16 @@ export default function ProfileScreen() {
         {/* Settings Sections */}
         <SettingsList sections={profileSections} colors={colors} />
 
+        {/* Sign Out Button */}
+        <TouchableOpacity 
+          style={[styles.signOutButton, { backgroundColor: colors.error }]}
+          onPress={handleLogout}
+        >
+          <Text style={[styles.signOutText, { color: colors.background }]}>
+            Sign Out
+          </Text>
+        </TouchableOpacity>
+
         {/* App Version */}
         <View style={styles.versionSection}>
           <Text style={[styles.versionText, { color: colors.textSecondary }]}>
@@ -415,6 +440,25 @@ const styles = StyleSheet.create({
   },
   buildText: {
     fontSize: 12,
+  },
+  signOutButton: {
+    backgroundColor: '#FF4444',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginVertical: 24,
+    marginHorizontal: 4,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#FFFFFF',
   },
   bottomSpacing: {
     height: 40,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Camera, CreditCard as Edit } from 'lucide-react-native';
 
 interface ProfileStat {
@@ -13,8 +13,10 @@ interface ProfileCardProps {
   user: {
     firstName?: string;
     lastName?: string;
+    first_name?: string;  // Add snake_case versions
+    last_name?: string;
     email?: string;
-  };
+  } | null;
   kycStatus: 'pending' | 'approved' | 'rejected';
   getKycStatusColor: () => string;
   getKycStatusText: () => string;
@@ -34,13 +36,21 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
   onChangeAvatar,
   colors,
 }) => {
+  // Debug log to see what user data we're getting
+  console.log('ProfileCard user data:', user);
+  
+  // Handle both camelCase (firstName) and snake_case (first_name) field names
+  const firstName = user?.firstName || user?.first_name;
+  const lastName = user?.lastName || user?.last_name;
+  const email = user?.email;
+  
   return (
     <View style={[styles.userCard, { backgroundColor: colors.card }]}> 
       <View style={styles.userHeader}>
         <View style={styles.avatarContainer}>
           <View style={[styles.avatar, { backgroundColor: colors.primary }]}> 
             <Text style={[styles.avatarText, { color: colors.background }]}> 
-              {user?.firstName?.charAt(0) || 'J'}{user?.lastName?.charAt(0) || 'D'}
+              {firstName?.charAt(0) ?? ''}{lastName?.charAt(0) ?? ''}
             </Text>
           </View>
           <TouchableOpacity style={[styles.cameraButton, { backgroundColor: colors.background }]} onPress={onChangeAvatar}>
@@ -49,10 +59,14 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         </View>
         <View style={styles.userInfo}>
           <Text style={[styles.userName, { color: colors.text }]}> 
-            {user?.firstName || 'John'} {user?.lastName || 'Doe'}
+            {firstName} {lastName}
           </Text>
-          <Text style={[styles.userEmail, { color: colors.textSecondary }]}> 
-            {user?.email || 'john.doe@example.com'}
+          <Text 
+            style={[styles.userEmail, { color: colors.textSecondary }]} 
+            numberOfLines={1} 
+            ellipsizeMode={Platform.OS === 'android' ? 'middle' : 'tail'}
+          > 
+            {email}
           </Text>
           <View style={styles.kycBadge}>
             <View style={[styles.kycIndicator, { backgroundColor: getKycStatusColor() }]} />
@@ -136,15 +150,19 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 2,
+    lineHeight: 28,
   },
   userEmail: {
-    fontSize: 16,
-    marginBottom: 8,
+    fontSize: 15,
+    marginBottom: 4,
+    lineHeight: 18,
+    flexShrink: 1,
   },
   kycBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 2,
   },
   kycIndicator: {
     width: 8,

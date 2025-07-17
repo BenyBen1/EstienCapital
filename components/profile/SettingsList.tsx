@@ -21,6 +21,7 @@ interface ProfileOption {
   hasSwitch?: boolean;
   switchValue?: boolean;
   onSwitchChange?: () => void;
+  customStyle?: any; // Add custom styling support
 }
 
 const SettingsList: React.FC<SettingsListProps> = ({ sections, colors }) => {
@@ -41,6 +42,7 @@ const SettingsList: React.FC<SettingsListProps> = ({ sections, colors }) => {
                       borderBottomWidth: 1,
                       borderBottomColor: colors.border,
                     },
+                    option.customStyle, // Apply custom styling
                   ]}
                   onPress={option.onPress}
                   disabled={option.hasSwitch}

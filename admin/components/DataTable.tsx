@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Badge } from './ui/badge';
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Column {
   key: string;

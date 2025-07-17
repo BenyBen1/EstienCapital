@@ -47,10 +47,6 @@ deploy-*.sh
 generate-*.js
 verify-*.js
 create-*.js
-*-setup.md
-*-auth-setup.md
-DEPLOYMENT_GUIDE.md
-SECURE_EMAIL_IMPLEMENTATION.md
 
 # development tools
 .qodo/
@@ -67,7 +63,6 @@ supabase/.temp/
 supabase/**/*.temp
 supabase/**/temp/
 
-# Documentation files (except main README)
-backend/README.md
-supabase/functions/README.md
-mermaidCharts/*.md
+# Documentation files (block ALL .md files except main README)
+*.md
+!README.md

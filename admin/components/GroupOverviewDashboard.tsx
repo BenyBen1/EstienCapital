@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Progress } from '../ui/progress';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { Progress } from './ui/progress';
 import { 
   Users, 
   TrendingUp, 
@@ -11,20 +11,19 @@ import {
   AlertTriangle,
   Plus,
   Search,
-  Filter,
   Eye,
   Edit,
   Trash2
 } from 'lucide-react';
-import { Input } from '../ui/input';
+import { Input } from './ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../ui/select';
-import { DataTable } from '../DataTable';
+} from './ui/select';
+import DataTable from './DataTable';
 
 interface GroupSummaryStats {
   total_groups: number;
@@ -174,81 +173,64 @@ const GroupOverviewDashboard: React.FC = () => {
 
   const groupColumns = [
     {
-      accessorKey: 'name',
-      header: 'Group Name',
-      cell: ({ row }: any) => (
+      key: 'name',
+      label: 'Group Name',
+      render: (value: any, row: any) => (
         <div className="flex items-center space-x-2">
-          <span className="text-lg">{getTypeIcon(row.original.type)}</span>
+          <span className="text-lg">{getTypeIcon(row.type)}</span>
           <div>
-            <div className="font-medium">{row.original.name}</div>
-            <div className="text-sm text-gray-500">{row.original.type.replace('_', ' ').toUpperCase()}</div>
+            <div className="font-medium">{row.name}</div>
+            <div className="text-sm text-gray-500">{row.type.replace('_', ' ').toUpperCase()}</div>
           </div>
         </div>
       ),
     },
     {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }: any) => (
-        <Badge className={getStatusColor(row.original.status)}>
-          {row.original.status}
+      key: 'status',
+      label: 'Status',
+      render: (value: any, row: any) => (
+        <Badge className={getStatusColor(row.status)}>
+          {row.status}
         </Badge>
       ),
     },
     {
-      accessorKey: 'member_count',
-      header: 'Members',
-      cell: ({ row }: any) => (
+      key: 'member_count',
+      label: 'Members',
+      render: (value: any, row: any) => (
         <div className="flex items-center space-x-1">
           <Users size={16} />
-          <span>{row.original.member_count}</span>
+          <span>{row.member_count}</span>
         </div>
       ),
     },
     {
-      accessorKey: 'group_balance',
-      header: 'Balance',
-      cell: ({ row }: any) => (
+      key: 'group_balance',
+      label: 'Balance',
+      render: (value: any, row: any) => (
         <div className="flex items-center space-x-1">
           <DollarSign size={16} />
-          <span className="font-medium">{formatCurrency(row.original.group_balance)}</span>
+          <span className="font-medium">{formatCurrency(row.group_balance)}</span>
         </div>
       ),
     },
     {
-      accessorKey: 'contribution_frequency',
-      header: 'Frequency',
-      cell: ({ row }: any) => (
+      key: 'contribution_frequency',
+      label: 'Frequency',
+      render: (value: any, row: any) => (
         <div className="flex items-center space-x-1">
           <Calendar size={16} />
-          <span>{row.original.contribution_frequency}</span>
+          <span>{row.contribution_frequency}</span>
         </div>
       ),
     },
     {
-      accessorKey: 'last_activity',
-      header: 'Last Activity',
-      cell: ({ row }: any) => (
+      key: 'last_activity',
+      label: 'Last Activity',
+      render: (value: any, row: any) => (
         <span className="text-sm text-gray-600">
-          {new Date(row.original.last_activity).toLocaleDateString()}
+          {new Date(row.last_activity).toLocaleDateString()}
         </span>
-      ),
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      cell: ({ row }: any) => (
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm">
-            <Eye size={16} />
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Edit size={16} />
-          </Button>
-          <Button variant="ghost" size="sm" className="text-red-600">
-            <Trash2 size={16} />
-          </Button>
-        </div>
       ),
     },
   ];
@@ -405,13 +387,13 @@ const GroupOverviewDashboard: React.FC = () => {
           
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4 mt-4">
-            <div className="flex-1">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search groups..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm"
-                icon={<Search size={16} />}
+                className="max-w-sm pl-10"
               />
             </div>
             <Select value={filterType} onValueChange={setFilterType}>
@@ -445,7 +427,19 @@ const GroupOverviewDashboard: React.FC = () => {
           <DataTable
             columns={groupColumns}
             data={filteredGroups}
-            searchKey="name"
+            actions={(row) => (
+              <div className="flex items-center space-x-2">
+                <Button variant="ghost" size="sm">
+                  <Eye size={16} />
+                </Button>
+                <Button variant="ghost" size="sm">
+                  <Edit size={16} />
+                </Button>
+                <Button variant="ghost" size="sm" className="text-red-600">
+                  <Trash2 size={16} />
+                </Button>
+              </div>
+            )}
           />
         </CardContent>
       </Card>

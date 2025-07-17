@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '@/services/config';
 import { apiFetch } from '@/services/apiFetch';
@@ -87,7 +87,7 @@ async function fetchUserProfile(userId: string) {
   return await response.json();
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { readonly children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -97,6 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        // Add a small delay for iOS to ensure proper initialization
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
         const [token, refreshToken, userData] = await Promise.all([
           AsyncStorage.getItem(TOKEN_KEY),
           AsyncStorage.getItem(REFRESH_TOKEN_KEY),
@@ -118,19 +121,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Failed to initialize auth:', error);
         await clearAuthData();
       } finally {
-        setIsLoading(false);
+        // Ensure loading state is set to false after a minimum time
+        setTimeout(() => setIsLoading(false), 100);
       }
     };
     initializeAuth();
   }, []);
-
-  const saveAuthData = async (user: User) => {
-    await Promise.all([
-      AsyncStorage.setItem(TOKEN_KEY, 'mock_token'),
-      AsyncStorage.setItem(USER_KEY, JSON.stringify(user)),
-    ]);
-    setUser(user);
-  };
 
   const clearAuthData = async () => {
     await Promise.all([
@@ -283,20 +279,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const contextValue = useMemo(() => ({
+    user,
+    isLoading,
+    isAuthenticated,
+    login,
+    register,
+    completeRegistration,
+    logout,
+    refreshAuth,
+    refreshProfile,
+  }), [user, isLoading, isAuthenticated, login, register, completeRegistration, logout, refreshAuth, refreshProfile]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        isAuthenticated,
-        login,
-        register,
-        completeRegistration,
-        logout,
-        refreshAuth,
-        refreshProfile,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { NavigationHelper } from '@/utils/navigationHelper';
 
 const { width, height } = Dimensions.get('window');
 
@@ -15,9 +16,17 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.replace('/(tabs)');
+      // Use NavigationHelper for safer navigation
+      NavigationHelper.safeNavigate(() => {
+        router.replace('/(tabs)');
+      });
     }
-  }, [isAuthenticated, isLoading]);
+    
+    // Cleanup function to clear any pending navigation
+    return () => {
+      NavigationHelper.clearPendingNavigation();
+    };
+  }, [isAuthenticated, isLoading, router]);
 
   if (isLoading) {
     return <LoadingSpinner text="Loading..." overlay />;

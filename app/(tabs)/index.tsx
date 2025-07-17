@@ -7,15 +7,10 @@ import {
   TouchableOpacity,
   Dimensions,
   RefreshControl,
-  Image,
-  Modal,
-  KeyboardAvoidingView,
-  TextInput,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, Minus, TrendingUp, Eye, EyeOff, ArrowUpRight, ArrowDownLeft, Target, Settings, Bell, Search, MoveHorizontal as MoreHorizontal, DollarSign, ChartPie as PieChart, Activity, Zap } from 'lucide-react-native';
+import { Plus, Minus, TrendingUp, Eye, EyeOff, ArrowUpRight, ArrowDownLeft, ChartPie as PieChart, Activity } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import DepositModal from '@/components/DepositModal';
@@ -23,7 +18,6 @@ import WithdrawModal from '@/components/WithdrawModal';
 import DepositInstructionsModal from '@/components/DepositInstructionsModal';
 import { BASE_URL } from '@/services/config';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from '@/services/apiFetch';
 
 const { width } = Dimensions.get('window');
@@ -66,6 +60,8 @@ export default function HomeScreen() {
   const [memoItems, setMemoItems] = useState<MemoItem[]>([]);
   const [memosLoading, setMemosLoading] = useState(true);
   const [memosError, setMemosError] = useState<string | null>(null);
+  
+  // Investment Calculator - Navigation to /calculator screen
 
   // Bank details for deposit instructions
   const [bankDetails] = useState({
@@ -130,7 +126,7 @@ export default function HomeScreen() {
     { id: 'deposit', title: 'Deposit', icon: Plus, color: colors.success, description: 'Add funds', onPress: () => setShowDepositModal(true) },
     { id: 'withdraw', title: 'Withdraw', icon: Minus, color: colors.error, description: 'Take profits', onPress: () => setShowWithdrawModal(true) },
     { id: 'invest', title: 'Invest', icon: TrendingUp, color: colors.primary, description: 'View products', onPress: () => router.push('/products') },
-    { id: 'goals', title: 'Goals', icon: Target, color: colors.warning, description: 'Set targets', onPress: () => {/* TODO: handle goals */} },
+    { id: 'calculator', title: 'Calculator', icon: PieChart, color: colors.warning, description: 'Investment calc', onPress: () => router.push('/calculator') },
   ];
 
   const recentTransactions = [
@@ -188,11 +184,25 @@ export default function HomeScreen() {
     setSelectedPaymentMethod('');
   };
 
+  // Investment Calculator Functions
+  // The InvestmentCalculator component handles all calculation logic internally
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
+  };
+
+  const getActionIconBackground = (actionId: string) => {
+    switch (actionId) {
+      case 'deposit':
+        return colors.success + '33';
+      case 'withdraw':
+        return colors.error + '33';
+      default:
+        return '#232323';
+    }
   };
 
   useEffect(() => {
@@ -341,11 +351,7 @@ export default function HomeScreen() {
               >
                 <View style={[
                   styles.quickActionIcon,
-                  action.id === 'deposit'
-                    ? { backgroundColor: colors.success + '33' }
-                    : action.id === 'withdraw'
-                    ? { backgroundColor: colors.error + '33' }
-                    : { backgroundColor: '#232323' },
+                  { backgroundColor: getActionIconBackground(action.id) },
                 ]}>
                   <action.icon size={24} color={action.color} />
                 </View>

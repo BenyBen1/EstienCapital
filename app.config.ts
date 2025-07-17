@@ -17,10 +17,12 @@ const config: ExpoConfig = {
   },
   ios: {
     supportsTablet: true,
+    bundleIdentifier: "com.estiencapital.app",
     infoPlist: {
       NSCameraUsageDescription: "This app needs access to your camera to take photos for KYC and document uploads.",
       NSPhotoLibraryUsageDescription: "This app needs access to your photo library to select images for KYC and document uploads.",
-      NSPhotoLibraryAddUsageDescription: "This app needs access to save photos to your library."
+      NSPhotoLibraryAddUsageDescription: "This app needs access to save photos to your library.",
+      UIViewControllerBasedStatusBarAppearance: false
     }
   },
   android: {

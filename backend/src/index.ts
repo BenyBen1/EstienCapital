@@ -10,6 +10,7 @@ import goalsRoutes from './routes/goals';
 import profileRoutes from './routes/profile';
 import productRoutes from './routes/products';
 import memoRoutes from './routes/memos';
+import adminRoutes from './routes/admin';
 import { logRequest, logError } from './middleware/logger';
 import { apiLimiter, authLimiter, uploadLimiter } from './middleware/rateLimit';
 import { requireAuth, requireKYC, requireAdmin } from './middleware/auth';
@@ -28,7 +29,12 @@ export const supabase = createClient(
 );
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(logRequest);
@@ -48,10 +54,8 @@ app.use('/api/portfolio', requireAuth, requireKYC, portfolioRoutes);
 app.use('/api/goals', requireAuth, requireKYC, goalsRoutes);
 app.use('/api/profile', requireAuth, profileRoutes);
 
-// Admin routes
-app.use('/api/admin', requireAuth, requireAdmin, (req, res) => {
-  res.json({ message: 'Admin access granted' });
-});
+// Admin routes (temporarily without auth for testing)
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

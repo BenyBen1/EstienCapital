@@ -19,11 +19,22 @@ export default function MemoDetailScreen() {
     setLoading(true);
     setError(null);
     apiFetch(`/api/memos/${id}`)
+      .then(res => res.json())
       .then(data => {
-        setMemo(data);
+        // Map API fields to what the UI expects
+        const mappedMemo = {
+          ...data,
+          timestamp: data.published_at ? new Date(data.published_at).toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric', 
+            year: 'numeric' 
+          }) : 'Draft',
+        };
+        setMemo(mappedMemo);
         setLoading(false);
       })
       .catch(err => {
+        console.error('Memo detail fetch error:', err);
         setError('Memo not found.');
         setLoading(false);
       });

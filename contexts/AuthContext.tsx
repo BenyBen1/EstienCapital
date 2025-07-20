@@ -50,11 +50,12 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
-  register: (userData: RegisterRequest) => Promise<void>;
+  register: (userData: RegisterRequest) => Promise<any>; // Return registration data
   completeRegistration: () => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  reloadUserFromStorage: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -80,11 +81,25 @@ async function ensureSupabaseSession() {
 }
 
 // In fetchUserProfile, ensure session is valid before API call
-async function fetchUserProfile(userId: string) {
+async function fetchUserProfile(userId: string): Promise<User> {
   await ensureSupabaseSession();
   const response = await apiFetch(`/api/profile/${userId}`);
   if (!response.ok) throw new Error('Failed to fetch user profile');
-  return await response.json();
+  const profileData = await response.json();
+  
+  // Map backend profile format to User interface
+  return {
+    id: profileData.id,
+    email: profileData.email,
+    firstName: profileData.first_name || '',
+    lastName: profileData.last_name || '',
+    phoneNumber: profileData.phone_number || '',
+    kycStatus: profileData.kyc_status || 'not_started',
+    createdAt: profileData.created_at || new Date().toISOString(),
+    updatedAt: profileData.updated_at || new Date().toISOString(),
+    accountType: profileData.account_type || 'individual',
+    groupId: profileData.group_id || undefined,
+  };
 }
 
 export function AuthProvider({ children }: { readonly children: ReactNode }) {
@@ -97,6 +112,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        console.log('AuthContext: Starting initialization...');
         // Add a small delay for iOS to ensure proper initialization
         await new Promise(resolve => setTimeout(resolve, 50));
         
@@ -105,8 +121,12 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
           AsyncStorage.getItem(REFRESH_TOKEN_KEY),
           AsyncStorage.getItem(USER_KEY),
         ]);
+        
+        console.log('AuthContext: Retrieved from storage - token:', !!token, 'refreshToken:', !!refreshToken, 'userData:', userData);
+        
         // Restore Supabase session if tokens exist
         if (token && refreshToken) {
+          console.log('AuthContext: Restoring Supabase session...');
           await supabase.auth.setSession({
             access_token: token,
             refresh_token: refreshToken,
@@ -114,8 +134,15 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
         }
         if (token && userData) {
           const parsedUser = JSON.parse(userData);
-          // Optionally fetch latest profile
+          console.log('AuthContext: Restoring user from storage:', parsedUser);
           setUser(parsedUser);
+        } else if (userData) {
+          // Even without token, if we have user data, restore it
+          const parsedUser = JSON.parse(userData);
+          console.log('AuthContext: Restoring user from storage without token:', parsedUser);
+          setUser(parsedUser);
+        } else {
+          console.log('AuthContext: No stored user data found - hasToken:', token ? 'yes' : 'no', 'hasUserData:', userData ? 'yes' : 'no');
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error);
@@ -177,7 +204,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     }
   };
 
-  // Real register: call backend
+  // Real register: call backend for ALL account types
   const register = async (userData: RegisterRequest) => {
     try {
       setIsLoading(true);
@@ -191,9 +218,11 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       if (!response.ok) {
         throw new Error(data.error || 'Registration failed');
       }
-      // Registration step 1 done, show message to user
-      // (You may want to show a toast/alert in the UI)
-      // Optionally fetch profile after registration if needed
+      
+      console.log('✅ Registration successful:', data);
+      
+      // Return the registration data for UI handling (keep email confirmation)
+      return data;
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
@@ -279,6 +308,22 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     }
   };
 
+  // Add a method to manually reload user from storage
+  const reloadUserFromStorage = async () => {
+    try {
+      const userData = await AsyncStorage.getItem(USER_KEY);
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        console.log('AuthContext: Manually reloading user from storage:', parsedUser);
+        setUser(parsedUser);
+      } else {
+        console.log('AuthContext: No user data found during manual reload');
+      }
+    } catch (error) {
+      console.error('Failed to reload user from storage:', error);
+    }
+  };
+
   const contextValue = useMemo(() => ({
     user,
     isLoading,
@@ -289,6 +334,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     logout,
     refreshAuth,
     refreshProfile,
+    reloadUserFromStorage,
   }), [user, isLoading, isAuthenticated, login, register, completeRegistration, logout, refreshAuth, refreshProfile]);
 
   return (

@@ -42,7 +42,7 @@ interface MemoItem {
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, reloadUserFromStorage } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [kycStatus, setKycStatus] = useState<string>('');
@@ -207,24 +207,48 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const fetchAndCacheProfile = async () => {
+      console.log('HomeScreen: user from AuthContext:', user);
       if (user?.id) {
         try {
           const res = await apiFetch(`/api/profile/${user.id}`);
           const data = await res.json();
+          console.log('HomeScreen: fetched profile data:', data);
           if (data?.error && (data.error.includes('token') || data.error.includes('Session expired'))) {
+            console.log('HomeScreen: Profile fetch failed due to auth error');
             setProfile(null);
             return;
           }
+          console.log('HomeScreen: Setting profile state:', data);
           setProfile(data);
         } catch (e) {
+          console.log('HomeScreen: Profile fetch error:', e);
           setProfile(null);
         }
       } else {
+        console.log('HomeScreen: No user ID available');
         setProfile(null);
       }
     };
     fetchAndCacheProfile();
   }, [user?.id]);
+
+  // Add effect to check for user data in storage if user is null
+  useEffect(() => {
+    const checkForStoredUser = async () => {
+      if (!user) {
+        console.log('HomeScreen: User is null, checking for stored data...');
+        try {
+          await reloadUserFromStorage();
+        } catch (error) {
+          console.error('HomeScreen: Failed to reload user from storage:', error);
+        }
+      }
+    };
+    
+    // Only check after a short delay to avoid race conditions
+    const timer = setTimeout(checkForStoredUser, 1000);
+    return () => clearTimeout(timer);
+  }, [user, reloadUserFromStorage]);
 
   useEffect(() => {
     setMemosLoading(true);
@@ -251,7 +275,13 @@ export default function HomeScreen() {
               {getGreeting()} 
             </Text> 
             <Text style={[styles.username, { color: colors.text }]}> 
-              {(profile?.first_name ?? user?.firstName ?? 'User') + ' ' + (profile?.last_name ?? user?.lastName ?? '')} 
+              {(() => {
+                const firstName = profile?.first_name ?? user?.firstName ?? 'User';
+                const lastName = profile?.last_name ?? user?.lastName ?? '';
+                const fullName = firstName + ' ' + lastName;
+                console.log('HomeScreen: Displaying name - profile:', profile, 'user:', user, 'fullName:', fullName);
+                return fullName;
+              })()}
             </Text> 
           </View> 
           <TouchableOpacity style={[styles.profileButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/profile')}> 

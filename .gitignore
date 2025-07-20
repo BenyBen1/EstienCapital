@@ -48,6 +48,25 @@ generate-*.js
 verify-*.js
 create-*.js
 
+# TEST FILES AND DEBUG SCRIPTS - Development only
+dev-tools/
+test-*.js
+test-*.ts
+debug-*.js
+debug-*.ts
+check-*.js
+check-*.ts
+**/test-*
+**/debug-*
+**/check-*
+test/
+tests/
+__tests__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
 # development tools
 .qodo/
 .bolt/

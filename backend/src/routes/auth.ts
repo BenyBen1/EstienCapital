@@ -40,6 +40,22 @@ router.post('/register', async (req, res) => {
       if (authError) return { error: authError };
       if (!authData.user) return { error: { message: 'User creation failed' } };
       
+      // Create profile first
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: authData.user.id,
+        email: authData.user.email,
+        first_name: firstName,
+        last_name: lastName,
+        account_type: accountType,
+        kyc_status: 'pending',
+        group_id: groupId
+      });
+      
+      if (profileError) {
+        console.error('Profile creation failed:', profileError);
+        return { error: profileError };
+      }
+      
       // Create wallet, notification preferences, security settings
       await supabase.from('wallets').insert({ 
         user_id: authData.user.id, 

@@ -7,10 +7,6 @@ import {
   TouchableOpacity,
   Dimensions,
   RefreshControl,
-  Modal,
-  KeyboardAvoidingView,
-  TextInput,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,7 +18,6 @@ import WithdrawModal from '@/components/WithdrawModal';
 import DepositInstructionsModal from '@/components/DepositInstructionsModal';
 import { BASE_URL } from '@/services/config';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from '@/services/apiFetch';
 
 const { width } = Dimensions.get('window');
@@ -47,7 +42,7 @@ interface MemoItem {
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, reloadUserFromStorage } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [kycStatus, setKycStatus] = useState<string>('');
@@ -66,17 +61,7 @@ export default function HomeScreen() {
   const [memosLoading, setMemosLoading] = useState(true);
   const [memosError, setMemosError] = useState<string | null>(null);
   
-  // Investment Calculator State
-  const [calculatorVisible, setCalculatorVisible] = useState(false);
-  const [initialAmount, setInitialAmount] = useState('');
-  const [monthlyContribution, setMonthlyContribution] = useState('');
-  const [annualReturn, setAnnualReturn] = useState('');
-  const [investmentYears, setInvestmentYears] = useState('');
-  const [calculatorResult, setCalculatorResult] = useState<{
-    finalAmount: number;
-    totalContributions: number;
-    totalReturns: number;
-  } | null>(null);
+  // Investment Calculator - Navigation to /calculator screen
 
   // Bank details for deposit instructions
   const [bankDetails] = useState({
@@ -141,7 +126,7 @@ export default function HomeScreen() {
     { id: 'deposit', title: 'Deposit', icon: Plus, color: colors.success, description: 'Add funds', onPress: () => setShowDepositModal(true) },
     { id: 'withdraw', title: 'Withdraw', icon: Minus, color: colors.error, description: 'Take profits', onPress: () => setShowWithdrawModal(true) },
     { id: 'invest', title: 'Invest', icon: TrendingUp, color: colors.primary, description: 'View products', onPress: () => router.push('/products') },
-    { id: 'calculator', title: 'Calculator', icon: PieChart, color: colors.warning, description: 'Investment calc', onPress: () => setCalculatorVisible(true) },
+    { id: 'calculator', title: 'Calculator', icon: PieChart, color: colors.warning, description: 'Investment calc', onPress: () => router.push('/calculator') },
   ];
 
   const recentTransactions = [
@@ -200,44 +185,7 @@ export default function HomeScreen() {
   };
 
   // Investment Calculator Functions
-  const calculateCompoundInterest = () => {
-    const principal = parseFloat(initialAmount) || 0;
-    const monthlyAmount = parseFloat(monthlyContribution) || 0;
-    const rate = parseFloat(annualReturn) / 100 || 0;
-    const years = parseInt(investmentYears) || 0;
-    
-    if (years === 0) return;
-
-    let futureValue = principal;
-    let totalContributions = principal;
-
-    // Calculate compound interest with monthly contributions
-    for (let year = 1; year <= years; year++) {
-      // Add monthly contributions throughout the year
-      for (let month = 1; month <= 12; month++) {
-        futureValue += monthlyAmount;
-        totalContributions += monthlyAmount;
-        // Apply monthly compound interest
-        futureValue *= (1 + rate / 12);
-      }
-    }
-
-    const totalReturns = futureValue - totalContributions;
-
-    setCalculatorResult({
-      finalAmount: Math.round(futureValue * 100) / 100,
-      totalContributions: Math.round(totalContributions * 100) / 100,
-      totalReturns: Math.round(totalReturns * 100) / 100,
-    });
-  };
-
-  const resetCalculator = () => {
-    setInitialAmount('');
-    setMonthlyContribution('');
-    setAnnualReturn('');
-    setInvestmentYears('');
-    setCalculatorResult(null);
-  };
+  // The InvestmentCalculator component handles all calculation logic internally
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -246,26 +194,61 @@ export default function HomeScreen() {
     return 'Good evening';
   };
 
+  const getActionIconBackground = (actionId: string) => {
+    switch (actionId) {
+      case 'deposit':
+        return colors.success + '33';
+      case 'withdraw':
+        return colors.error + '33';
+      default:
+        return '#232323';
+    }
+  };
+
   useEffect(() => {
     const fetchAndCacheProfile = async () => {
+      console.log('HomeScreen: user from AuthContext:', user);
       if (user?.id) {
         try {
           const res = await apiFetch(`/api/profile/${user.id}`);
           const data = await res.json();
+          console.log('HomeScreen: fetched profile data:', data);
           if (data?.error && (data.error.includes('token') || data.error.includes('Session expired'))) {
+            console.log('HomeScreen: Profile fetch failed due to auth error');
             setProfile(null);
             return;
           }
+          console.log('HomeScreen: Setting profile state:', data);
           setProfile(data);
         } catch (e) {
+          console.log('HomeScreen: Profile fetch error:', e);
           setProfile(null);
         }
       } else {
+        console.log('HomeScreen: No user ID available');
         setProfile(null);
       }
     };
     fetchAndCacheProfile();
   }, [user?.id]);
+
+  // Add effect to check for user data in storage if user is null
+  useEffect(() => {
+    const checkForStoredUser = async () => {
+      if (!user) {
+        console.log('HomeScreen: User is null, checking for stored data...');
+        try {
+          await reloadUserFromStorage();
+        } catch (error) {
+          console.error('HomeScreen: Failed to reload user from storage:', error);
+        }
+      }
+    };
+    
+    // Only check after a short delay to avoid race conditions
+    const timer = setTimeout(checkForStoredUser, 1000);
+    return () => clearTimeout(timer);
+  }, [user, reloadUserFromStorage]);
 
   useEffect(() => {
     setMemosLoading(true);
@@ -292,7 +275,13 @@ export default function HomeScreen() {
               {getGreeting()} 
             </Text> 
             <Text style={[styles.username, { color: colors.text }]}> 
-              {(profile?.first_name ?? user?.firstName ?? 'User') + ' ' + (profile?.last_name ?? user?.lastName ?? '')} 
+              {(() => {
+                const firstName = profile?.first_name ?? user?.firstName ?? 'User';
+                const lastName = profile?.last_name ?? user?.lastName ?? '';
+                const fullName = firstName + ' ' + lastName;
+                console.log('HomeScreen: Displaying name - profile:', profile, 'user:', user, 'fullName:', fullName);
+                return fullName;
+              })()}
             </Text> 
           </View> 
           <TouchableOpacity style={[styles.profileButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/profile')}> 
@@ -392,11 +381,7 @@ export default function HomeScreen() {
               >
                 <View style={[
                   styles.quickActionIcon,
-                  action.id === 'deposit'
-                    ? { backgroundColor: colors.success + '33' }
-                    : action.id === 'withdraw'
-                    ? { backgroundColor: colors.error + '33' }
-                    : { backgroundColor: '#232323' },
+                  { backgroundColor: getActionIconBackground(action.id) },
                 ]}>
                   <action.icon size={24} color={action.color} />
                 </View>
@@ -450,155 +435,6 @@ export default function HomeScreen() {
           onConfirm={handleDepositConfirmation}
           colors={colors}
         />
-
-        {/* Investment Calculator Modal */}
-        <Modal
-          visible={calculatorVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setCalculatorVisible(false)}
-        >
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalOverlay}
-          >
-            <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  Investment Calculator
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setCalculatorVisible(false)}
-                  style={[styles.closeButton, { backgroundColor: colors.error + '20' }]}
-                >
-                  <Text style={[styles.closeButtonText, { color: colors.error }]}>×</Text>
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={styles.calculatorContent} showsVerticalScrollIndicator={false}>
-                <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { color: colors.text }]}>
-                    Initial Investment (KES)
-                  </Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                    value={initialAmount}
-                    onChangeText={setInitialAmount}
-                    placeholder="e.g., 100000"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { color: colors.text }]}>
-                    Monthly Contribution (KES)
-                  </Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                    value={monthlyContribution}
-                    onChangeText={setMonthlyContribution}
-                    placeholder="e.g., 5000"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { color: colors.text }]}>
-                    Expected Annual Return (%)
-                  </Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                    value={annualReturn}
-                    onChangeText={setAnnualReturn}
-                    placeholder="e.g., 12"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { color: colors.text }]}>
-                    Investment Period (Years)
-                  </Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                    value={investmentYears}
-                    onChangeText={setInvestmentYears}
-                    placeholder="e.g., 10"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.calculatorButtons}>
-                  <TouchableOpacity
-                    style={[styles.calculateButton, { backgroundColor: colors.primary }]}
-                    onPress={calculateCompoundInterest}
-                  >
-                    <Text style={[styles.calculateButtonText, { color: colors.background }]}>
-                      Calculate
-                    </Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.resetButton, { backgroundColor: colors.error + '20' }]}
-                    onPress={resetCalculator}
-                  >
-                    <Text style={[styles.resetButtonText, { color: colors.error }]}>
-                      Reset
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {calculatorResult && (
-                  <View style={[styles.resultContainer, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.resultTitle, { color: colors.text }]}>
-                      Investment Projection
-                    </Text>
-                    
-                    <View style={styles.resultRow}>
-                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
-                        Total Contributions:
-                      </Text>
-                      <Text style={[styles.resultValue, { color: colors.text }]}>
-                        KES {calculatorResult.totalContributions.toLocaleString()}
-                      </Text>
-                    </View>
-
-                    <View style={styles.resultRow}>
-                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
-                        Total Returns:
-                      </Text>
-                      <Text style={[styles.resultValue, { color: colors.success }]}>
-                        KES {calculatorResult.totalReturns.toLocaleString()}
-                      </Text>
-                    </View>
-
-                    <View style={[styles.resultRow, styles.finalResultRow]}>
-                      <Text style={[styles.resultLabel, { color: colors.text, fontWeight: 'bold' }]}>
-                        Final Amount:
-                      </Text>
-                      <Text style={[styles.finalResultValue, { color: colors.primary }]}>
-                        KES {calculatorResult.finalAmount.toLocaleString()}
-                      </Text>
-                    </View>
-
-                    <View style={styles.percentageGain}>
-                      <Text style={[styles.percentageText, { color: colors.success }]}>
-                        {calculatorResult.totalContributions > 0 
-                          ? `+${Math.round((calculatorResult.totalReturns / calculatorResult.totalContributions) * 100)}% Total Gain`
-                          : '+0% Total Gain'
-                        }
-                      </Text>
-                    </View>
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -811,133 +647,5 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 60, // more space at the bottom
-  },
-  
-  // Investment Calculator Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    width: '90%',
-    maxHeight: '80%',
-    borderRadius: 16,
-    padding: 20,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  calculatorContent: {
-    flex: 1,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 16,
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
-  },
-  calculatorButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  calculateButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calculateButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  resetButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  resetButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  resultContainer: {
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 10,
-  },
-  resultTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  finalResultRow: {
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    paddingTop: 12,
-    marginTop: 8,
-  },
-  resultLabel: {
-    fontSize: 14,
-  },
-  resultValue: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  finalResultValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  percentageGain: {
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  percentageText: {
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });

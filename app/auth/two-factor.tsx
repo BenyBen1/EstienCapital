@@ -6,18 +6,43 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/services/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function TwoFactorScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { reloadUserFromStorage } = useAuth();
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
   const inputRefs = useRef<TextInput[]>([]);
+
+  // Get email from route params or AsyncStorage
+  useEffect(() => {
+    const getEmailFromStorage = async () => {
+      try {
+        const savedEmail = await AsyncStorage.getItem('pending_verification_email');
+        if (savedEmail) {
+          setUserEmail(savedEmail);
+        }
+      } catch (error) {
+        console.error('Error getting email from storage:', error);
+      }
+    };
+    getEmailFromStorage();
+  }, []);
 
   const handleCodeChange = (value: string, index: number) => {
     const newCode = [...code];
@@ -43,13 +68,127 @@ export default function TwoFactorScreen() {
       return;
     }
 
+    if (!userEmail) {
+      Alert.alert('Error', 'Email not found. Please go back and register again.');
+      return;
+    }
+
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Verify the OTP with Supabase
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: userEmail,
+        token: codeString,
+        type: 'signup'
+      });
+
+      if (error) {
+        Alert.alert('Verification Failed', error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        console.log('Two-factor: Email verification successful for user:', data.user.id);
+        
+        // Clear the stored email
+        await AsyncStorage.removeItem('pending_verification_email');
+        
+        // Save the Supabase session tokens to AsyncStorage for the AuthContext
+        if (data.session) {
+          console.log('Two-factor: Saving session tokens...');
+          await AsyncStorage.setItem('auth_token', data.session.access_token);
+          await AsyncStorage.setItem('refresh_token', data.session.refresh_token);
+          
+          // Try to fetch the complete user profile from backend
+          try {
+            console.log('Two-factor: Fetching profile from backend...');
+            const response = await fetch(`http://192.168.0.175:5000/api/profile/${data.user.id}`, {
+              headers: {
+                'Authorization': `Bearer ${data.session.access_token}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (response.ok) {
+              const profileData = await response.json();
+              console.log('Two-factor: Backend profile data:', profileData);
+              
+              // Create properly formatted user object
+              const userProfile = {
+                id: profileData.id,
+                email: profileData.email,
+                firstName: profileData.first_name || '',
+                lastName: profileData.last_name || '',
+                phoneNumber: profileData.phone_number || '',
+                kycStatus: profileData.kyc_status || 'not_started',
+                createdAt: profileData.created_at || data.user.created_at,
+                updatedAt: profileData.updated_at || data.user.updated_at || data.user.created_at,
+                accountType: profileData.account_type || 'individual',
+                groupId: profileData.group_id || undefined,
+              };
+              
+              console.log('Two-factor: Saving formatted user profile:', userProfile);
+              await AsyncStorage.setItem('user_data', JSON.stringify(userProfile));
+            } else {
+              console.log('Two-factor: Backend profile fetch failed, using Supabase data');
+              // Fallback to basic Supabase user data
+              const userProfile = {
+                id: data.user.id,
+                email: data.user.email || userEmail,
+                firstName: data.user.user_metadata?.firstName || '',
+                lastName: data.user.user_metadata?.lastName || '',
+                phoneNumber: data.user.user_metadata?.phoneNumber || '',
+                kycStatus: 'not_started' as const,
+                createdAt: data.user.created_at,
+                updatedAt: data.user.updated_at || data.user.created_at,
+                accountType: 'individual' as const,
+              };
+              
+              console.log('Two-factor: Saving fallback user profile:', userProfile);
+              await AsyncStorage.setItem('user_data', JSON.stringify(userProfile));
+            }
+          } catch (profileError) {
+            console.warn('Could not fetch profile from backend, using basic Supabase data:', profileError);
+            
+            // Fallback to basic Supabase user data
+            const userProfile = {
+              id: data.user.id,
+              email: data.user.email || userEmail,
+              firstName: data.user.user_metadata?.firstName || '',
+              lastName: data.user.user_metadata?.lastName || '',
+              phoneNumber: data.user.user_metadata?.phoneNumber || '',
+              kycStatus: 'not_started' as const,
+              createdAt: data.user.created_at,
+              updatedAt: data.user.updated_at || data.user.created_at,
+              accountType: 'individual' as const,
+            };
+            
+            console.log('Two-factor: Saving error fallback user profile:', userProfile);
+            await AsyncStorage.setItem('user_data', JSON.stringify(userProfile));
+          }
+        }
+        
+        // Trigger AuthContext to reload user data from storage
+        try {
+          console.log('Two-factor: Triggering AuthContext reload...');
+          await reloadUserFromStorage();
+          console.log('Two-factor: AuthContext reload completed');
+        } catch (reloadError) {
+          console.warn('Two-factor: Failed to reload AuthContext:', reloadError);
+        }
+        
+        console.log('Two-factor: Navigating to main app...');
+        // User is now verified and logged in
+        router.replace('/(tabs)');
+      }
+    } catch (error) {
+      console.error('Verification error:', error);
+      Alert.alert('Error', 'An unexpected error occurred during verification');
+    } finally {
       setIsLoading(false);
-      router.replace('/(tabs)');
-    }, 1500);
+    }
   };
 
   useEffect(() => {
@@ -57,84 +196,98 @@ export default function TwoFactorScreen() {
   }, []);
 
   return (
-    <LinearGradient
-      colors={[colors.background, colors.surface]}
-      style={styles.container}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => router.replace('/auth/login')}
+      <LinearGradient
+        colors={[colors.background, colors.surface]}
+        style={styles.container}
       >
-        <ArrowLeft size={24} color={colors.text} />
-      </TouchableOpacity>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.replace('/auth/login')}
+            >
+              <ArrowLeft size={24} color={colors.text} />
+            </TouchableOpacity>
 
-      <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <View style={[styles.iconBackground, { backgroundColor: colors.primary }]}>
-            <Shield size={40} color={colors.background} />
-          </View>
-        </View>
+            <View style={styles.content}>
+              <View style={styles.iconContainer}>
+                <View style={[styles.iconBackground, { backgroundColor: colors.primary }]}>
+                  <Shield size={40} color={colors.background} />
+                </View>
+              </View>
 
-        <Text style={[styles.title, { color: colors.text }]}>
-          Two-Factor Authentication
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Enter the 6-digit code from your Google Authenticator app
-        </Text>
+              <Text style={[styles.title, { color: colors.text }]}>
+                Email Verification
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                Enter the 6-digit code sent to your email address
+              </Text>
 
-        <View style={styles.codeContainer}>
-          {code.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(ref) => {
-                if (ref) inputRefs.current[index] = ref;
-              }}
-              style={[
-                styles.codeInput,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: digit ? colors.primary : colors.border,
-                  color: colors.text,
-                },
-              ]}
-              value={digit}
-              onChangeText={(value) => handleCodeChange(value, index)}
-              onKeyPress={({ nativeEvent }) => {
-                if (nativeEvent.key === 'Backspace') {
-                  handleBackspace(index);
-                }
-              }}
-              keyboardType="number-pad"
-              maxLength={1}
-              textAlign="center"
-            />
-          ))}
-        </View>
+              <View style={styles.codeContainer}>
+                {[0, 1, 2, 3, 4, 5].map((digitIndex) => (
+                  <TextInput
+                    key={`input-${digitIndex}`}
+                    ref={(ref) => {
+                      if (ref) inputRefs.current[digitIndex] = ref;
+                    }}
+                    style={[
+                      styles.codeInput,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: code[digitIndex] ? colors.primary : colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    value={code[digitIndex] || ''}
+                    onChangeText={(value) => handleCodeChange(value, digitIndex)}
+                    onKeyPress={({ nativeEvent }) => {
+                      if (nativeEvent.key === 'Backspace') {
+                        handleBackspace(digitIndex);
+                      }
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                    textAlign="center"
+                  />
+                ))}
+              </View>
 
-        <TouchableOpacity
-          style={[
-            styles.verifyButton,
-            { backgroundColor: colors.primary },
-            isLoading && styles.buttonDisabled,
-          ]}
-          onPress={handleVerify}
-          disabled={isLoading}
-        >
-          <Text style={[styles.verifyButtonText, { color: colors.background }]}>
-            {isLoading ? 'Verifying...' : 'Verify Code'}
-          </Text>
-        </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.verifyButton,
+                  { backgroundColor: colors.primary },
+                  isLoading && styles.buttonDisabled,
+                ]}
+                onPress={handleVerify}
+                disabled={isLoading}
+              >
+                <Text style={[styles.verifyButtonText, { color: colors.background }]}>
+                  {isLoading ? 'Verifying...' : 'Verify Code'}
+                </Text>
+              </TouchableOpacity>
 
-        <TouchableOpacity style={styles.resendContainer}>
-          <Text style={[styles.resendText, { color: colors.textSecondary }]}>
-            Having trouble?{' '}
-          </Text>
-          <Text style={[styles.resendLink, { color: colors.primary }]}>
-            Contact Support
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </LinearGradient>
+              <TouchableOpacity style={styles.resendContainer}>
+                <Text style={[styles.resendText, { color: colors.textSecondary }]}>
+                  Having trouble?{' '}
+                </Text>
+                <Text style={[styles.resendLink, { color: colors.primary }]}>
+                  Contact Support
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -143,6 +296,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 60,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingBottom: 40,
   },
   backButton: {
     width: 40,
@@ -155,7 +313,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 100,
+    paddingBottom: 40,
   },
   iconContainer: {
     marginBottom: 32,

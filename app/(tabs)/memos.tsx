@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { apiFetch } from '@/services/apiFetch';
@@ -18,21 +18,48 @@ export default function MemosScreen() {
   const router = useRouter();
   const [memoItems, setMemoItems] = useState<MemoItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
+  const fetchMemos = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
-    apiFetch('/api/memos')
-      .then(res => res.json())
-      .then(data => {
-        setMemoItems(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError('Failed to load memos');
-        setLoading(false);
-      });
+    
+    try {
+      const res = await apiFetch('/api/memos');
+      const data = await res.json();
+      
+      // Handle the API response structure { memos: [...] }
+      const memos = data.memos || [];
+      // Map API fields to what the UI expects
+      const mappedMemos = memos.map((memo: any) => ({
+        id: memo.id,
+        title: memo.title,
+        summary: memo.summary || (memo.content ? memo.content.substring(0, 120) + '...' : 'Click to read more'),
+        author: memo.author,
+        timestamp: memo.published_at ? new Date(memo.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Draft',
+        category: memo.category,
+      }));
+      setMemoItems(mappedMemos);
+    } catch (err) {
+      console.error('Memos fetch error:', err);
+      setError('Failed to load memos');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    fetchMemos(true);
+  };
+
+  useEffect(() => {
+    fetchMemos();
   }, []);
 
   return (
@@ -40,7 +67,18 @@ export default function MemosScreen() {
       <View style={[styles.header, { backgroundColor: colors.surface }]}> 
         <Text style={[styles.headerTitle, { color: colors.text }]}>Memos from the Desk</Text> 
       </View>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
         {loading ? (
           <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 32 }} />
         ) : error ? (

@@ -8,10 +8,10 @@ import {
   Alert,
   TextInput,
   Image,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, Copy, CheckCircle, Smartphone, Key } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
@@ -153,7 +153,7 @@ export default function TwoFactorSetupScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -460,8 +460,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
+    paddingVertical: Platform.OS === 'android' ? 16 : 12,
+    minHeight: Platform.OS === 'android' ? 64 : 56,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -469,10 +469,10 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   backButton: {
-    padding: 8,
+    padding: Platform.OS === 'android' ? 12 : 8,
     borderRadius: 20,
-    width: 40,
-    height: 40,
+    width: Platform.OS === 'android' ? 44 : 40,
+    height: Platform.OS === 'android' ? 44 : 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -481,11 +481,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
-    marginRight: 48, // To center properly accounting for back button
+    marginHorizontal: Platform.OS === 'android' ? 8 : 0,
+    paddingRight: Platform.OS === 'android' ? 40 : 48, // Account for back button width
   },
   headerSpacer: {
-    width: 40,
-    height: 40,
+    width: Platform.OS === 'android' ? 44 : 40,
+    height: Platform.OS === 'android' ? 44 : 40,
   },
   keyboardAvoidingView: {
     flex: 1,

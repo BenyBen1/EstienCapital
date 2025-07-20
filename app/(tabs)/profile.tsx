@@ -6,9 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  RefreshControl,
 } from 'react-native';
-import { User as UserIcon, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, LogOut, Phone, MessageCircle, Mail, Bell, Lock, Globe, Star, Award, TrendingUp } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { User as UserIcon, CreditCard, Shield, FileText, CircleHelp as HelpCircle, Moon, Sun, Phone, MessageCircle, Mail, Bell, Lock, Globe, Star, Award, TrendingUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
@@ -43,75 +43,91 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [kycStatus] = useState<'pending' | 'approved' | 'rejected'>('approved');
   const [refreshing, setRefreshing] = useState(false);
-  const [kycInfo, setKycInfo] = useState<any>(null);
 
-  // Real stats state
+  // Debug log to see what user data we have
+  console.log('ProfileScreen user data from AuthContext:', user);
+  
+  // Let's also check AsyncStorage directly
+  useEffect(() => {
+    const checkStoredUser = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user_data');
+        console.log('Stored user data:', storedUser);
+        if (storedUser) {
+          console.log('Parsed stored user:', JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.log('Error reading stored user:', error);
+      }
+    };
+    checkStoredUser();
+  }, []);
+
+  // Real stats state - start with defaults, only fetch on manual refresh
   const [stats, setStats] = useState<any>({ balance: 0, invested: 0, goals: 0 });
-  const [statsLoading, setStatsLoading] = useState(true);
 
-  // Fetch stats from backend and cache name
+  // Manual refresh - only fetch when user taps Refresh button
   const fetchStats = async () => {
     if (!user?.id) return;
-    setStatsLoading(true);
+    
     try {
-      // Use apiFetch for token freshness
       const walletRes = await apiFetch(`/api/profile/${user.id}`);
-      const walletData = await walletRes.json();
-      if (walletData?.error && (walletData.error.includes('token') || walletData.error.includes('Session expired'))) {
-        Alert.alert('Session expired', 'Please log in again.');
-        await logout();
-        router.replace('/auth/login');
+      
+      const contentType = walletRes.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        console.warn('Profile API returned non-JSON response, using cached data');
         return;
       }
-      // Do NOT cache name locally, always use live data
-      const invRes = await apiFetch('/api/portfolio');
-      const invData = await invRes.json();
-      const goalsRes = await apiFetch('/api/goals');
-      const goalsData = await goalsRes.json();
+      
+      const walletData = await walletRes.json();
+      if (walletData?.error) {
+        console.warn('Profile API error:', walletData.error);
+        return;
+      }
+      
+      let investedAmount = 0;
+      let goalsCount = 0;
+      
+      try {
+        const invRes = await apiFetch('/api/portfolio');
+        if (invRes.headers.get('content-type')?.includes('application/json')) {
+          const invData = await invRes.json();
+          if (Array.isArray(invData)) {
+            investedAmount = invData.reduce((sum: number, inv: any) => sum + (inv.amount ?? 0), 0);
+          }
+        }
+      } catch (err: any) {
+        console.warn('Portfolio API failed, using default:', err.message);
+      }
+      
+      try {
+        const goalsRes = await apiFetch('/api/goals');
+        if (goalsRes.headers.get('content-type')?.includes('application/json')) {
+          const goalsData = await goalsRes.json();
+          if (Array.isArray(goalsData)) {
+            goalsCount = goalsData.length;
+          }
+        }
+      } catch (err: any) {
+        console.warn('Goals API failed, using default:', err.message);
+      }
+      
       setStats({
         ...walletData,
         balance: walletData?.balance ?? 0,
-        invested: Array.isArray(invData) ? invData.reduce((sum: number, inv: any) => sum + (inv.amount ?? 0), 0) : 0,
-        goals: Array.isArray(goalsData) ? goalsData.length : 0,
+        invested: investedAmount,
+        goals: goalsCount,
       });
     } catch (err: any) {
-      console.error('Error fetching stats:', err);
-    } finally {
-      setStatsLoading(false);
+      console.warn('Stats fetch failed:', err.message);
+      Alert.alert('Error', 'Failed to refresh data. Please try again.');
     }
   };
 
-  useEffect(() => {
-    fetchStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  const profileStats: ProfileStat[] = [
-    {
-      label: 'Portfolio Value',
-      value: statsLoading ? 'Loading...' : `KES ${stats.balance.toLocaleString()}`,
-      icon: TrendingUp,
-      color: colors.primary,
-    },
-    {
-      label: 'Total Invested',
-      value: statsLoading ? 'Loading...' : `KES ${stats.invested.toLocaleString()}`,
-      icon: Award,
-      color: colors.success,
-    },
-    {
-      label: 'Active Goals',
-      value: statsLoading ? 'Loading...' : `${stats.goals}`,
-      icon: Star,
-      color: colors.warning,
-    },
-  ];
-
   const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
+    await fetchStats();
+    setRefreshing(false);
   };
 
   const handleLogout = () => {
@@ -153,15 +169,50 @@ export default function ProfileScreen() {
     }
   };
 
-  // Navigate to KYC info page
   const fetchKycInfo = async () => {
     router.push('/kyc/status');
   };
+
+  const profileStats: ProfileStat[] = [
+    {
+      label: 'Portfolio Value',
+      value: `KES ${stats.balance.toLocaleString()}`,
+      icon: TrendingUp,
+      color: colors.primary,
+    },
+    {
+      label: 'Total Invested',
+      value: `KES ${stats.invested.toLocaleString()}`,
+      icon: Award,
+      color: colors.success,
+    },
+    {
+      label: 'Active Goals',
+      value: `${stats.goals}`,
+      icon: Star,
+      color: colors.warning,
+    },
+  ];
 
   const profileSections = [
     {
       title: 'Account Management',
       items: [
+        {
+          id: 'complete-kyc',
+          icon: Shield,
+          title: 'Complete KYC',
+          subtitle: 'Complete your verification process',
+          onPress: () => router.push('/kyc'),
+          badge: true,
+          badgeColor: colors.warning,
+          customStyle: {
+            borderWidth: 2,
+            borderColor: colors.warning,
+            borderRadius: 12,
+            marginVertical: 4,
+          },
+        },
         {
           id: 'personal-info',
           icon: UserIcon,
@@ -282,77 +333,53 @@ export default function ProfileScreen() {
       ],
     },
   ];
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+      {/* Header with Refresh button */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           Profile
         </Text>
-        {/* Removed gear/settings icon */}
+        <TouchableOpacity
+          style={[styles.refreshButton, { backgroundColor: colors.primary + '20' }]}
+          onPress={onRefresh}
+          disabled={refreshing}
+        >
+          <Text style={[styles.refreshText, { color: colors.primary }]}>
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView 
-        style={[styles.content, { paddingTop: 8, paddingBottom: 40 }]} // pull up content, add bottom space
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        style={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* User Profile Card - break up info for clarity */}
-        <View style={{ marginBottom: 16 }}>
+        {/* User Profile Card */}
+        <View style={styles.profileCardContainer}>
           <ProfileCard
-            user={{
-              ...user,
-              firstName: stats?.first_name ?? user?.firstName ?? '',
-              lastName: stats?.last_name ?? user?.lastName ?? '',
-            }}
+            user={user}
             kycStatus={kycStatus}
             getKycStatusColor={getKycStatusColor}
             getKycStatusText={getKycStatusText}
             profileStats={profileStats}
             colors={colors}
           />
-          {/* Example: show balance, goals, etc. as separate cards or rows here if needed */}
         </View>
 
-        {/* Profile Sections */}
+        {/* Settings Sections */}
         <SettingsList sections={profileSections} colors={colors} />
 
-        {/* Quick Actions - remove Export Data, balance layout */}
-        <View style={styles.quickActionsSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Quick Actions
+        {/* Sign Out Button */}
+        <TouchableOpacity 
+          style={[styles.signOutButton, { backgroundColor: colors.error }]}
+          onPress={handleLogout}
+        >
+          <Text style={[styles.signOutText, { color: colors.background }]}>
+            Sign Out
           </Text>
-          <View style={styles.quickActionsGrid}>
-            <TouchableOpacity
-              style={[styles.quickActionCard, { backgroundColor: colors.primary + '10' }]}
-              onPress={() => router.push('/kyc')}
-            >
-              <Shield size={24} color={colors.primary} />
-              <Text style={[styles.quickActionText, { color: colors.primary }]}>
-                Complete KYC
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.quickActionCard, { backgroundColor: colors.warning + '10' }]}
-            >
-              <HelpCircle size={24} color={colors.warning} />
-              <Text style={[styles.quickActionText, { color: colors.warning }]}>
-                Get Help
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.quickActionCard, { backgroundColor: colors.error + '10' }]}
-              onPress={handleLogout}
-            >
-              <LogOut size={24} color={colors.error} />
-              <Text style={[styles.quickActionText, { color: colors.error }]}>
-                Sign Out
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        </TouchableOpacity>
 
         {/* App Version */}
         <View style={styles.versionSection}>
@@ -378,105 +405,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 28, // was 60
+    paddingTop: 28,
     paddingHorizontal: 24,
-    paddingBottom: 12, // was 24
+    paddingBottom: 12,
   },
   headerTitle: {
-    fontSize: 20, // was 28
+    fontSize: 20,
     fontWeight: 'bold',
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  refreshButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  refreshText: {
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
+    paddingTop: 8,
   },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  sectionContent: {
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-  },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  settingText: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  settingSubtitle: {
-    fontSize: 14,
-  },
-  settingRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  quickActionsSection: {
-    marginBottom: 32,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  quickActionCard: {
-    width: '48%',
-    alignItems: 'center',
-    padding: 20,
-    borderRadius: 16,
-  },
-  quickActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-    textAlign: 'center',
+  profileCardContainer: {
+    marginBottom: 16,
   },
   versionSection: {
     alignItems: 'center',
@@ -488,6 +440,25 @@ const styles = StyleSheet.create({
   },
   buildText: {
     fontSize: 12,
+  },
+  signOutButton: {
+    backgroundColor: '#FF4444',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginVertical: 24,
+    marginHorizontal: 4,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#FFFFFF',
   },
   bottomSpacing: {
     height: 40,

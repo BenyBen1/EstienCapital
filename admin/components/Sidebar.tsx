@@ -16,7 +16,8 @@ import {
   TrendingUp,
   UserCheck,
   Users2,
-  Calculator
+  Calculator,
+  Clock
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -37,6 +38,7 @@ const navigation = [
   { name: 'Products', href: '/admin/products', icon: Package },
   { name: 'Portfolios', href: '/admin/portfolios', icon: PieChart },
   { name: 'Transactions', href: '/admin/transactions', icon: CreditCard },
+  { name: 'Transaction Requests', href: '/admin/transaction-requests', icon: Clock },
   { name: 'Memos', href: '/admin/memos', icon: MessageSquare },
   { name: 'Notifications', href: '/admin/notifications', icon: Bell },
   { name: 'Settings', href: '/admin/settings', icon: Settings },

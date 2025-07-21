@@ -1,7 +1,8 @@
 // API service layer - backend integration  
 import { User, Product, Portfolio, Transaction, Memo, Admin, DashboardMetrics, AuditLog, KycSubmission } from '@/types';
+import { mockUsers, mockProducts, mockPortfolios, mockDashboardMetrics, mockAdmins, mockAuditLogs, mockKycSubmissions } from './mock-data';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_URL 
   ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1`
   : 'http://localhost:54321/functions/v1';
@@ -11,10 +12,9 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 export const authAPI = {
   login: async (email: string, password: string, twoFactorCode?: string) => {
     try {
-      const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/admin-login`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/admin/login`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -33,36 +33,6 @@ export const authAPI = {
       return data;
     } catch (error) {
       console.error('Login API error:', error);
-      
-      // Fallback to mock for development
-      if (process.env.NODE_ENV === 'development') {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        if (email === 'admin@estiencapital.com' && password === 'admin123') {
-          if (twoFactorCode && twoFactorCode !== '123456') {
-            return { success: false, error: 'Invalid 2FA code' };
-          }
-          
-          const mockUser = {
-            id: 'admin-1',
-            email: 'admin@estiencapital.com',
-            firstName: 'Admin',
-            lastName: 'User',
-            role: 'super_admin' as const,
-            permissions: ['all'],
-            createdAt: new Date().toISOString(),
-          };
-          
-          return {
-            success: true,
-            user: mockUser,
-            token: 'mock-admin-token-' + Date.now(),
-          };
-        }
-        
-        return { success: false, error: 'Invalid credentials' };
-      }
-      
       return { success: false, error: 'Network error' };
     }
   },
@@ -86,22 +56,6 @@ export const authAPI = {
       return data;
     } catch (error) {
       console.error('Token verification error:', error);
-      
-      // Fallback to mock for development
-      if (process.env.NODE_ENV === 'development' && token.startsWith('mock-admin-token')) {
-        const mockUser = {
-          id: 'admin-1',
-          email: 'admin@estiencapital.com',
-          firstName: 'Admin',
-          lastName: 'User',
-          role: 'super_admin' as const,
-          permissions: ['all'],
-          createdAt: new Date().toISOString(),
-        };
-        
-        return { success: true, user: mockUser };
-      }
-      
       return { success: false, error: 'Network error' };
     }
   },
@@ -162,7 +116,7 @@ export const usersAPI = {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         credentials: 'include',
       });
@@ -188,7 +142,7 @@ export const usersAPI = {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         credentials: 'include',
       });
@@ -212,7 +166,7 @@ export const usersAPI = {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         body: JSON.stringify(updates),
         credentials: 'include',
@@ -236,7 +190,7 @@ export const usersAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         credentials: 'include',
       });
@@ -259,7 +213,7 @@ export const usersAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         body: JSON.stringify({ reason }),
         credentials: 'include',
@@ -323,21 +277,79 @@ export const portfoliosAPI = {
 // Transactions API
 export const transactionsAPI = {
   getTransactions: async (page = 1, limit = 10, filters?: any) => {
-    // TODO: Replace with actual API call
-    // return await fetch(`/api/transactions?page=${page}&limit=${limit}&filters=${JSON.stringify(filters)}`);
-    return Promise.resolve({ data: mockTransactions, total: mockTransactions.length });
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        ...(filters?.type && { type: filters.type }),
+        ...(filters?.status && { status: filters.status }),
+        ...(filters?.startDate && { startDate: filters.startDate }),
+        ...(filters?.endDate && { endDate: filters.endDate }),
+      });
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/transactions/admin?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch transactions: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      // Fallback to empty data
+      return { data: [], total: 0 };
+    }
   },
   
   approveTransaction: async (id: string) => {
-    // TODO: Replace with actual API call
-    // return await fetch(`/api/transactions/${id}/approve`, { method: 'POST' });
-    return Promise.resolve({ success: true });
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/transactions/${id}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to approve transaction: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error approving transaction:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: errorMessage };
+    }
   },
   
   rejectTransaction: async (id: string, reason: string) => {
-    // TODO: Replace with actual API call
-    // return await fetch(`/api/transactions/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
-    return Promise.resolve({ success: true });
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/transactions/${id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+        },
+        body: JSON.stringify({ reason }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to reject transaction: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error rejecting transaction:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: errorMessage };
+    }
   },
 };
 
@@ -349,7 +361,7 @@ export const memosAPI = {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         credentials: 'include',
       });
@@ -382,7 +394,7 @@ export const memosAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         body: JSON.stringify(memo),
         credentials: 'include',
@@ -406,7 +418,7 @@ export const memosAPI = {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         body: JSON.stringify(updates),
         credentials: 'include',
@@ -430,7 +442,7 @@ export const memosAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         body: JSON.stringify(options),
         credentials: 'include',
@@ -454,7 +466,7 @@ export const memosAPI = {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         credentials: 'include',
       });
@@ -477,7 +489,7 @@ export const memosAPI = {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         body: JSON.stringify({ status: 'archived' }),
         credentials: 'include',
@@ -502,7 +514,7 @@ export const memosAPI = {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         credentials: 'include',
       });
@@ -528,7 +540,7 @@ export const dashboardAPI = {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'mock-token'}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
         },
         credentials: 'include',
       });
@@ -543,6 +555,37 @@ export const dashboardAPI = {
       console.error('Error fetching dashboard metrics:', error);
       // Fallback to mock data for now
       return mockDashboardMetrics;
+    }
+  },
+};
+
+// Transaction Requests API (for admin review of all transactions)
+export const transactionRequestsAPI = {
+  getTransactionRequests: async (page = 1, limit = 20, filters?: any) => {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        ...(filters?.type && { type: filters.type }),
+        ...(filters?.status && { status: filters.status }),
+      });
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/admin/transaction-requests?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch transaction requests: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching transaction requests:', error);
+      return { data: [], total: 0 };
     }
   },
 };

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase, supabaseAdmin } from '../config/supabase';
+import { supabase} from '../config/supabase';
 import { requireAuth } from '../middleware/auth';
 import { sendEmail } from '../utils/email';
 import { generateOTP } from '../utils/otp';

@@ -76,6 +76,7 @@ __tests__/
 **/migrations/*.sql
 *-schema.sql
 *-tables.sql
+.env.example
 
 # Supabase temp files
 supabase/.temp/

@@ -22,10 +22,13 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-
+import { Users, FileText, TrendingUp, Settings, BarChart3, Calculator, Bell, DollarSign, ArrowUpCircle, ArrowDownCircle, UserCheck } from 'lucide-react';
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: BarChart3 },
   { 
+  { name: 'KYC Submissions', href: '/admin/kyc-submissions', icon: UserCheck },
+  { name: 'Deposits', href: '/admin/deposits', icon: ArrowUpCircle },
+  { name: 'Withdrawals', href: '/admin/withdrawals', icon: ArrowDownCircle },
     name: 'Users', 
     href: '/admin/users', 
     icon: Users,

@@ -1,3 +1,4 @@
+
 // API service layer - backend
 import { User, Product, Portfolio, Transaction, Memo, Admin, DashboardMetrics, AuditLog, KycSubmission } from '@/types';
 import { mockUsers, mockProducts, mockPortfolios, mockDashboardMetrics, mockAdmins, mockAuditLogs, mockKycSubmissions } from './mock-data';
@@ -642,3 +643,4 @@ export const notificationsAPI = {
 };
 
 console.debug('API URL:', process.env.NEXT_PUBLIC_API_URL);
+

@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import GroupAccountMemberForm from '@/components/profile/GroupAccountMemberForm';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type AccountType = 'individual' | 'group';
 
@@ -32,7 +33,7 @@ interface GroupMember {
   isAccountManager: boolean;
 }
 
-export default function SignupScreen() {
+const SignUpScreen = () => {
   const router = useRouter();
   const { colors } = useTheme();
   const { register, isLoading } = useAuth();
@@ -228,7 +229,7 @@ export default function SignupScreen() {
     if (formData.accountType === 'group' && !validateGroupMembers()) return;
 
     try {
-      await register({
+      const registrationData = await register({
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         email: formData.email.trim(),
@@ -239,19 +240,51 @@ export default function SignupScreen() {
         groupMembers: formData.accountType === 'group' ? groupMembers : undefined,
       });
       
-      Alert.alert(
-        'Account Created',
-        formData.accountType === 'group' 
-          ? 'Your group account has been created successfully. Members will receive email invitations to complete their setup.'
-          : 'Your account has been created successfully. Please complete your KYC verification.',
-        [
-          {
-            text: 'Continue',
-            onPress: () => router.replace('/(tabs)'),
-          },
-        ]
-      );
+      console.log('Registration completed:', registrationData);
+      
+      if (formData.accountType === 'individual') {
+        if (registrationData.requiresEmailConfirmation) {
+          // Store email for the two-factor screen
+          await AsyncStorage.setItem('pending_verification_email', formData.email.trim());
+          
+          Alert.alert(
+            'Check Your Email',
+            'We\'ve sent you a verification code via email. Please check your inbox.',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.replace('/auth/two-factor'),
+              },
+            ]
+          );
+        } else {
+          // User is already logged in (this won't happen with email confirmation enabled)
+          Alert.alert(
+            'Account Created',
+            'Your account has been created successfully!',
+            [
+              {
+                text: 'Continue',
+                onPress: () => router.replace('/(tabs)'),
+              },
+            ]
+          );
+        }
+      } else {
+        // Group account
+        Alert.alert(
+          'Group Account Created',
+          'Your group account has been created successfully. Members will receive email invitations to complete their setup.',
+          [
+            {
+              text: 'Continue',
+              onPress: () => router.replace('/auth/login'),
+            },
+          ]
+        );
+      }
     } catch (error) {
+      console.error('Registration error:', error);
       Alert.alert(
         'Registration Failed',
         error instanceof Error ? error.message : 'An unexpected error occurred'
@@ -525,7 +558,9 @@ export default function SignupScreen() {
       </KeyboardAvoidingView>
     </LinearGradient>
   );
-}
+};
+
+export default SignUpScreen;
 
 const styles = StyleSheet.create({
   container: {

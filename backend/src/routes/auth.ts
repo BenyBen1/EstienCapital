@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase, supabaseAdmin } from '../config/supabase';
+import { supabase} from '../config/supabase';
 import { requireAuth } from '../middleware/auth';
 import { sendEmail } from '../utils/email';
 import { generateOTP } from '../utils/otp';
@@ -40,12 +40,26 @@ router.post('/register', async (req, res) => {
       if (authError) return { error: authError };
       if (!authData.user) return { error: { message: 'User creation failed' } };
       
+      // Create profile first
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: authData.user.id,
+        email: authData.user.email,
+        first_name: firstName,
+        last_name: lastName,
+        account_type: accountType,
+        kyc_status: 'pending'
+      });
+      
+      if (profileError) {
+        console.error('Profile creation failed:', profileError);
+        return { error: profileError };
+      }
+      
       // Create wallet, notification preferences, security settings
       await supabase.from('wallets').insert({ 
         user_id: authData.user.id, 
         balance: 0, 
-        currency: 'KES',
-        group_id: groupId 
+        currency: 'KES'
       });
       await supabase.from('notification_preferences').insert({ 
         user_id: authData.user.id, 
@@ -62,44 +76,88 @@ router.post('/register', async (req, res) => {
     }
 
     if (accountType === 'group' && groupMembers && groupMembers.length > 0) {
-      // Create the group first
-      const { data: groupData, error: groupError } = await supabase
-        .from('account_groups')
-        .insert({
-          name: groupName,
-          type: groupType || 'sacco',
-          status: 'pending',
-          created_by: email, // Will update with actual user ID later
-        })
-        .select()
-        .single();
-
-      if (groupError) {
-        return res.status(400).json({ error: 'Group creation failed', details: groupError });
+      // Validate that no group member has the same email as the primary user
+      const duplicateEmail = groupMembers.find((member: any) => member.email === email);
+      if (duplicateEmail) {
+        return res.status(400).json({ 
+          error: 'Duplicate email found', 
+          details: `The email ${email} is already used for the primary account and cannot be used for group member "${duplicateEmail.firstName} ${duplicateEmail.lastName}"` 
+        });
       }
 
-      const groupId = groupData.id;
-      const registeredMembers = [];
+      // Validate that group member emails are unique
+      const memberEmails = groupMembers.map((member: any) => member.email);
+      const uniqueEmails = new Set(memberEmails);
+      if (memberEmails.length !== uniqueEmails.size) {
+        const duplicates = memberEmails.filter((email: string, index: number) => memberEmails.indexOf(email) !== index);
+        return res.status(400).json({ 
+          error: 'Duplicate emails found among group members', 
+          details: `The following emails are used multiple times: ${[...new Set(duplicates)].join(', ')}` 
+        });
+      }
 
-      // Register the primary user (account creator)
+      // Register the primary user (account creator) first
       const primary = await registerUser({ 
         email, 
         password, 
         firstName, 
         lastName, 
-        accountType,
-        groupId 
+        accountType: 'individual', // Create as individual first, then update
+        groupId: null // Will be set after group creation
       });
       
       if (primary.error) {
         return res.status(400).json({ error: primary.error.message || 'Primary user registration failed' });
       }
 
-      // Update group with actual creator user ID
-      await supabase
+      console.log('DEBUG: primary user object:', primary.user);
+      console.log('DEBUG: primary user id:', primary.user?.id);
+      console.log('DEBUG: primary user email:', primary.user?.email);
+
+      // Ensure we have a valid UUID for created_by
+      const createdByUserId = primary.user?.id;
+      if (!createdByUserId || typeof createdByUserId !== 'string' || createdByUserId.includes('@')) {
+        console.error('DEBUG: Invalid user ID:', createdByUserId);
+        return res.status(400).json({ error: 'Invalid user ID for group creation' });
+      }
+
+      // Now create the group with the actual user ID
+      const { data: groupData, error: groupError } = await supabase
         .from('account_groups')
-        .update({ created_by: primary.user.id })
-        .eq('id', groupId);
+        .insert({
+          name: groupName,
+          type: groupType || 'sacco',
+          status: 'pending',
+          created_by: createdByUserId,
+        })
+        .select()
+        .single();
+
+      if (groupError) {
+        console.error('Group creation error:', groupError);
+        return res.status(400).json({ error: 'Group creation failed', details: groupError });
+      }
+
+      const groupId = groupData.id;
+      const registeredMembers = [];
+
+      // Update primary user's profile to set account type as group
+      await supabase
+        .from('profiles')
+        .update({ 
+          account_type: 'group'
+        })
+        .eq('id', primary.user.id);
+
+      // Create group membership record for primary user
+      await supabase.from('group_members').insert({
+        group_id: groupId,
+        user_id: primary.user.id,
+        account_number: 'MAIN',
+        role: 'admin',
+        is_account_manager: true,
+        status: 'active', // Primary user is immediately active
+      });
 
       registeredMembers.push({
         user: primary.user,

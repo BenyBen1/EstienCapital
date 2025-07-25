@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   Dimensions,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Clipboard from 'expo-clipboard';
 import { Plus, Minus, TrendingUp, Eye, EyeOff, ArrowUpRight, ArrowDownLeft, ChartPie as PieChart, Activity } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +21,7 @@ import DepositInstructionsModal from '@/components/DepositInstructionsModal';
 import { BASE_URL } from '@/services/config';
 import { useRouter } from 'expo-router';
 import { apiFetch } from '@/services/apiFetch';
+import { WalletAPI } from '@/services/walletAPI';
 
 const { width } = Dimensions.get('window');
 
@@ -42,13 +45,14 @@ interface MemoItem {
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, reloadUserFromStorage } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [kycStatus, setKycStatus] = useState<string>('');
   const [balance, setBalance] = useState<number | null>(null);
   const [hideBalance, setHideBalance] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -63,21 +67,22 @@ export default function HomeScreen() {
   
   // Investment Calculator - Navigation to /calculator screen
 
-  // Bank details for deposit instructions
+  // Bank details for deposit instructions - NCBA Bank
   const [bankDetails] = useState({
-    bankName: 'Equity Bank',
+    bankName: 'NCBA Bank',
     accountName: 'Estien Capital Limited',
-    accountNumber: '1234567890',
-    swiftCode: 'EQBLKEXX',
-    branchCode: '123',
+    accountNumber: '1001234567890',
+    swiftCode: 'NCBAKEXX',
+    branchCode: '001',
+    branchName: 'NCBA Westlands Branch',
   });
 
   // Payment methods for withdrawals
   const [paymentMethods] = useState([
     {
       id: '1',
-      name: 'Equity Bank',
-      accountNumber: '1234567890',
+      name: 'NCBA Bank',
+      accountNumber: '1001234567890',
       accountName: 'John Doe',
     },
     {
@@ -124,6 +129,7 @@ export default function HomeScreen() {
 
   const quickActions = [
     { id: 'deposit', title: 'Deposit', icon: Plus, color: colors.success, description: 'Add funds', onPress: () => setShowDepositModal(true) },
+    { id: 'topup', title: 'Top Up', icon: ArrowUpRight, color: colors.success, description: 'Quick deposit', onPress: () => setShowDepositModal(true) },
     { id: 'withdraw', title: 'Withdraw', icon: Minus, color: colors.error, description: 'Take profits', onPress: () => setShowWithdrawModal(true) },
     { id: 'invest', title: 'Invest', icon: TrendingUp, color: colors.primary, description: 'View products', onPress: () => router.push('/products') },
     { id: 'calculator', title: 'Calculator', icon: PieChart, color: colors.warning, description: 'Investment calc', onPress: () => router.push('/calculator') },
@@ -161,10 +167,8 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // Simulate API call
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
+    await fetchWalletBalance();
+    setRefreshing(false);
   };
 
   // Modal handlers
@@ -173,9 +177,46 @@ export default function HomeScreen() {
     setShowDepositInstructionsModal(true);
   };
 
-  const handleDepositConfirmation = () => {
-    setShowDepositInstructionsModal(false);
-    setDepositAmount('');
+  const handleDepositConfirmation = async () => {
+    if (!user?.id || !depositAmount) {
+      Alert.alert('Error', 'Please ensure you are logged in and have specified an amount.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // Use the WalletAPI to confirm the deposit
+      const response = await WalletAPI.confirmDeposit({
+        userId: user.id,
+        amount: parseFloat(depositAmount),
+        paymentMethod: 'bank_transfer',
+        depositReference: `DEP_${user.id.slice(0, 8)}_${Date.now()}`,
+      });
+
+      // Show success message
+      Alert.alert(
+        'Deposit Confirmation Received!',
+        response.message || 'Your deposit confirmation has been received successfully. Our team will verify your payment and credit your account within 24 hours.\n\nYou can track the status in the Transactions tab.',
+        [{ text: 'OK' }]
+      );
+
+      // Close modals and reset state
+      setShowDepositInstructionsModal(false);
+      setDepositAmount('');
+      
+      // Refresh any relevant data if needed
+      // You can add portfolio refresh here if required
+
+    } catch (error: any) {
+      console.error('Deposit confirmation error:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to confirm deposit. Please try again or contact support.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleWithdraw = () => {
@@ -205,26 +246,68 @@ export default function HomeScreen() {
     }
   };
 
+  // Fetch wallet balance
+  const fetchWalletBalance = async () => {
+    if (!user?.id) return;
+    
+    try {
+      console.log('Fetching wallet balance for user:', user.id);
+      const wallet = await WalletAPI.getWallet(user.id);
+      console.log('Wallet data received:', wallet);
+      setBalance(wallet.balance || 0);
+    } catch (error) {
+      console.error('Failed to fetch wallet balance:', error);
+      // Silently fail - don't show error to user for wallet balance
+    }
+  };
+
   useEffect(() => {
     const fetchAndCacheProfile = async () => {
+      console.log('HomeScreen: user from AuthContext:', user);
       if (user?.id) {
         try {
           const res = await apiFetch(`/api/profile/${user.id}`);
           const data = await res.json();
+          console.log('HomeScreen: fetched profile data:', data);
           if (data?.error && (data.error.includes('token') || data.error.includes('Session expired'))) {
+            console.log('HomeScreen: Profile fetch failed due to auth error');
             setProfile(null);
             return;
           }
+          console.log('HomeScreen: Setting profile state:', data);
           setProfile(data);
+          
+          // Also fetch wallet balance
+          await fetchWalletBalance();
         } catch (e) {
+          console.log('HomeScreen: Profile fetch error:', e);
           setProfile(null);
         }
       } else {
+        console.log('HomeScreen: No user ID available');
         setProfile(null);
       }
     };
     fetchAndCacheProfile();
   }, [user?.id]);
+
+  // Add effect to check for user data in storage if user is null
+  useEffect(() => {
+    const checkForStoredUser = async () => {
+      if (!user) {
+        console.log('HomeScreen: User is null, checking for stored data...');
+        try {
+          await reloadUserFromStorage();
+        } catch (error) {
+          console.error('HomeScreen: Failed to reload user from storage:', error);
+        }
+      }
+    };
+    
+    // Only check after a short delay to avoid race conditions
+    const timer = setTimeout(checkForStoredUser, 1000);
+    return () => clearTimeout(timer);
+  }, [user, reloadUserFromStorage]);
 
   useEffect(() => {
     setMemosLoading(true);
@@ -251,7 +334,13 @@ export default function HomeScreen() {
               {getGreeting()} 
             </Text> 
             <Text style={[styles.username, { color: colors.text }]}> 
-              {(profile?.first_name ?? user?.firstName ?? 'User') + ' ' + (profile?.last_name ?? user?.lastName ?? '')} 
+              {(() => {
+                const firstName = profile?.first_name ?? user?.firstName ?? 'User';
+                const lastName = profile?.last_name ?? user?.lastName ?? '';
+                const fullName = firstName + ' ' + lastName;
+                console.log('HomeScreen: Displaying name - profile:', profile, 'user:', user, 'fullName:', fullName);
+                return fullName;
+              })()}
             </Text> 
           </View> 
           <TouchableOpacity style={[styles.profileButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/profile')}> 
@@ -397,10 +486,10 @@ export default function HomeScreen() {
           amount={depositAmount}
           bankDetails={bankDetails}
           copiedField={copiedField}
-          onCopy={(val, field) => {
-            // TODO: Implement copy functionality
+          onCopy={async (val, field) => {
+            await Clipboard.setStringAsync(val);
             setCopiedField(field);
-            console.log('Copied:', val);
+            Alert.alert('Copied', `${field} copied to clipboard`);
           }}
           onConfirm={handleDepositConfirmation}
           colors={colors}

@@ -14,6 +14,7 @@ const config: ExpoConfig = {
   extra: {
     SUPABASE_URL: process.env.SUPABASE_URL,
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
+    API_BASE_URL: process.env.API_BASE_URL || "http://192.168.0.175:5000",
   },
   ios: {
     supportsTablet: true,

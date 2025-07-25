@@ -25,7 +25,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     const token = authHeader.split(' ')[1];
     console.log('Token received:', token);
 
-    // Verify and decode the JWT token
+    // Verify and decode the JWT token from Supabase
     const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET!) as {
       sub: string;
       email?: string;
@@ -70,7 +70,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 };
 
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user || req.user.role !== 'admin') {
+  if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'super_admin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();

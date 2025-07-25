@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
 import kycRoutes from './routes/kyc';
 import transactionRoutes from './routes/transactions';
+import walletRoutes from './routes/wallet';
 import portfolioRoutes from './routes/portfolio';
 import goalsRoutes from './routes/goals';
 import profileRoutes from './routes/profile';
@@ -30,7 +31,7 @@ export const supabase = createClient(
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: true, // Allow all origins for development
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -38,6 +39,12 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(logRequest);
+
+// Debug middleware to log all incoming requests (BEFORE routes)
+app.use((req, res, next) => {
+  console.log('[DEBUG] Incoming request:', req.method, req.originalUrl, req.headers.authorization);
+  next();
+});
 
 // Rate limiting
 app.use('/api/', apiLimiter);
@@ -49,6 +56,9 @@ app.use('/api/products', productRoutes);
 app.use('/api/memos', memoRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/kyc', requireAuth, kycRoutes);
+// Wallet routes (balance viewing doesn't require KYC)
+app.use('/api/transactions/wallet', requireAuth, walletRoutes);
+// Other transaction routes (require KYC)
 app.use('/api/transactions', requireAuth, requireKYC, transactionRoutes);
 app.use('/api/portfolio', requireAuth, requireKYC, portfolioRoutes);
 app.use('/api/goals', requireAuth, requireKYC, goalsRoutes);

@@ -1,7 +1,129 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../config/supabase';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 
 const router = Router();
+
+// Debug endpoint to check transactions table
+router.get('/debug/transactions', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    console.log('Debug: Checking transactions table...');
+    
+    const { data, error, count } = await supabaseAdmin
+      .from('transactions')
+      .select('*', { count: 'exact' })
+      .limit(5);
+
+    if (error) {
+      console.error('Debug error:', error);
+      return res.json({ error: error.message, details: error });
+    }
+
+    console.log('Debug: Found', count, 'transactions');
+    res.json({
+      success: true,
+      count,
+      sample: data
+    });
+  } catch (error: any) {
+    console.error('Debug catch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Debug endpoint to test basic functionality
+router.get('/debug/test', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Auth works',
+      user: req.user
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get transaction requests (all transactions for admin review) - fallback approach
+router.get('/transaction-requests', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    console.log('Transaction requests endpoint hit');
+    const { page = 1, limit = 20, status, type } = req.query;
+    
+    console.log('Query params:', { page, limit, status, type });
+    
+    // Get transactions first
+    let query = supabaseAdmin
+      .from('transactions')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false });
+
+    // Apply filters if provided
+    if (status) query = query.eq('status', status);
+    if (type) query = query.eq('type', type);
+
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 20;
+
+    console.log('Executing transactions query...');
+    const { data: transactions, error, count } = await query
+      .range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
+
+    if (error) {
+      console.error('Transactions query error:', error);
+      throw error;
+    }
+
+    console.log('Query successful, found:', count, 'transactions');
+
+    // Get unique user IDs from transactions
+    const userIds = [...new Set(transactions?.map(t => t.user_id).filter(Boolean) || [])];
+    
+    // Fetch all profiles for these users in one query
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, first_name, last_name, email, phone_number')
+      .in('id', userIds);
+
+    // Create a map of user profiles for quick lookup
+    const profileMap = new Map();
+    (profiles || []).forEach(profile => {
+      profileMap.set(profile.id, {
+        full_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown User',
+        email: profile.email,
+        phone: profile.phone_number
+      });
+    });
+
+    // Transform the transactions with profile data
+    const transformedTransactions = transactions?.map(transaction => ({
+      ...transaction,
+      profiles: profileMap.get(transaction.user_id) || {
+        full_name: 'Unknown User',
+        email: 'N/A',
+        phone: 'N/A'
+      }
+    })) || [];
+
+    console.log('Transformed transactions:', transformedTransactions.length);
+
+    res.json({
+      success: true,
+      data: transformedTransactions,
+      total: count || 0,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil((count || 0) / limitNum)
+    });
+  } catch (error: any) {
+    console.error('Error fetching transaction requests:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch transaction requests',
+      details: error.message 
+    });
+  }
+});
 
 // Get dashboard metrics for admin
 router.get('/dashboard/metrics', async (req, res) => {
@@ -276,6 +398,64 @@ router.post('/users/:userId/kyc/reject', async (req, res) => {
   } catch (error: any) {
     console.error('Error rejecting KYC:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin login endpoint
+router.post('/login', async (req, res) => {
+  try {
+    console.log('Admin login endpoint hit with body:', req.body);
+    const { email, password, totpCode } = req.body;
+    
+    // Use Supabase Auth for admin login
+    const { supabase } = require('../config/supabase');
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authError || !authData.user) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+    
+    // If 2FA code is provided, verify it (simple mock check for now)
+    if (totpCode && totpCode !== '123456') {
+      return res.status(401).json({ success: false, error: 'Invalid 2FA code' });
+    }
+    
+    // Check if user has admin role in database
+    const { data: profile, error } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', authData.user.id)
+      .eq('role', 'super_admin')
+      .single();
+    
+    if (error || !profile) {
+      return res.status(401).json({ success: false, error: 'Admin access denied' });
+    }
+    
+    // Use the session token from Supabase Auth
+    const token = authData.session?.access_token;
+    
+    const user = {
+      id: profile.id,
+      email: profile.email,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      role: profile.role,
+      permissions: ['all'],
+      createdAt: profile.created_at,
+    };
+    
+    res.json({
+      success: true,
+      user,
+      token
+    });
+  } catch (error: any) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ success: false, error: 'Login failed' });
   }
 });
 

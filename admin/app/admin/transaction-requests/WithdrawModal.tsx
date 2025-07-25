@@ -1,6 +1,32 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from './page'; // or copy the function if not exported
+import { CheckCircle, XCircle, DollarSign, User, Hash } from 'lucide-react';
+
+interface WithdrawRequest {
+  id: string;
+  amount: number;
+  reference_number?: string;
+  profiles?: {
+    full_name: string;
+    email: string;
+  };
+}
+
+interface WithdrawModalProps {
+  open: boolean;
+  request: WithdrawRequest | null;
+  action: 'approve' | 'reject';
+  onClose: () => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+}
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+  }).format(amount);
+};
 
 export default function WithdrawModal({
   open,
@@ -9,39 +35,85 @@ export default function WithdrawModal({
   onClose,
   onApprove,
   onReject,
-}: {
-  open: boolean;
-  request: any;
-  action: 'approve' | 'reject';
-  onClose: () => void;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-}) {
+}: WithdrawModalProps) {
+  if (!request) return null;
+
+  const isApprove = action === 'approve';
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {action === 'approve'
-              ? `Approve Withdraw Request`
-              : `Reject Withdraw Request`}
-          </DialogTitle>
+          <div className="flex items-center gap-3">
+            {isApprove ? (
+              <CheckCircle className="h-6 w-6 text-green-600" />
+            ) : (
+              <XCircle className="h-6 w-6 text-red-600" />
+            )}
+            <DialogTitle className="text-xl">
+              {isApprove ? 'Approve Withdrawal' : 'Reject Withdrawal'}
+            </DialogTitle>
+          </div>
         </DialogHeader>
-        <div>
-          Are you sure you want to {action === 'approve' ? 'approve' : 'reject'} this withdraw request?
-          <div className="mt-2 text-sm text-gray-500">
-            <div><b>Customer:</b> {request?.profiles?.full_name}</div>
-            <div><b>Amount:</b> {request && formatCurrency(request.amount)}</div>
-            <div><b>Reference:</b> {request?.reference_number}</div>
+
+        <div className="space-y-6">
+          <p className="text-gray-600">
+            {isApprove 
+              ? 'Are you sure you want to approve this withdrawal request?' 
+              : 'Are you sure you want to reject this withdrawal request?'
+            }
+          </p>
+          
+          {!isApprove && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">
+                This action cannot be undone. The user will be notified of the rejection.
+              </p>
+            </div>
+          )}
+
+          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <User className="h-4 w-4 text-gray-500" />
+              <div>
+                <span className="text-sm text-gray-500">Customer</span>
+                <p className="font-medium">{request.profiles?.full_name || 'Unknown'}</p>
+                {request.profiles?.email && (
+                  <p className="text-sm text-gray-600">{request.profiles.email}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <DollarSign className="h-4 w-4 text-gray-500" />
+              <div>
+                <span className="text-sm text-gray-500">Amount</span>
+                <p className="font-bold text-lg">{formatCurrency(request.amount)}</p>
+              </div>
+            </div>
+
+            {request.reference_number && (
+              <div className="flex items-center gap-3">
+                <Hash className="h-4 w-4 text-gray-500" />
+                <div>
+                  <span className="text-sm text-gray-500">Reference</span>
+                  <p className="font-mono text-sm">{request.reference_number}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+
+        <DialogFooter className="flex gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onClose} className="flex-1">
+            Cancel
+          </Button>
           <Button
-            variant={action === 'approve' ? 'default' : 'destructive'}
-            onClick={() => action === 'approve' ? onApprove(request.id) : onReject(request.id)}
+            variant={isApprove ? 'default' : 'destructive'}
+            onClick={() => isApprove ? onApprove(request.id) : onReject(request.id)}
+            className={`flex-1 ${isApprove ? 'bg-green-600 hover:bg-green-700' : ''}`}
           >
-            {action === 'approve' ? 'Approve' : 'Reject'}
+            {isApprove ? 'Approve' : 'Reject'}
           </Button>
         </DialogFooter>
       </DialogContent>

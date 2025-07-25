@@ -1,4 +1,4 @@
-// API service layer - backend integration  
+// API service layer - backend
 import { User, Product, Portfolio, Transaction, Memo, Admin, DashboardMetrics, AuditLog, KycSubmission } from '@/types';
 import { mockUsers, mockProducts, mockPortfolios, mockDashboardMetrics, mockAdmins, mockAuditLogs, mockKycSubmissions } from './mock-data';
 

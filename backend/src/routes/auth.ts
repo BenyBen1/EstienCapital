@@ -77,7 +77,7 @@ router.post('/register', async (req, res) => {
 
     if (accountType === 'group' && groupMembers && groupMembers.length > 0) {
       // Validate that no group member has the same email as the primary user
-      const duplicateEmail = groupMembers.find(member => member.email === email);
+      const duplicateEmail = groupMembers.find((member: any) => member.email === email);
       if (duplicateEmail) {
         return res.status(400).json({ 
           error: 'Duplicate email found', 
@@ -86,10 +86,10 @@ router.post('/register', async (req, res) => {
       }
 
       // Validate that group member emails are unique
-      const memberEmails = groupMembers.map(member => member.email);
+      const memberEmails = groupMembers.map((member: any) => member.email);
       const uniqueEmails = new Set(memberEmails);
       if (memberEmails.length !== uniqueEmails.size) {
-        const duplicates = memberEmails.filter((email, index) => memberEmails.indexOf(email) !== index);
+        const duplicates = memberEmails.filter((email: string, index: number) => memberEmails.indexOf(email) !== index);
         return res.status(400).json({ 
           error: 'Duplicate emails found among group members', 
           details: `The following emails are used multiple times: ${[...new Set(duplicates)].join(', ')}` 

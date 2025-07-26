@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import AdminLayout from '@/components/AdminLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,11 +21,27 @@ interface KycSubmission {
   id: string;
   user_id: string;
   first_name: string;
+  middle_name?: string;
   last_name: string;
   email: string;
   phone_number: string;
+  date_of_birth: string;
+  gender: string;
   id_type: string;
   id_number: string;
+  kra_pin: string;
+  occupation: string;
+  source_of_wealth: string;
+  physical_address: string;
+  city: string;
+  country: string;
+  postal_address: string;
+  postal_code: string;
+  next_of_kin_first_name: string;
+  next_of_kin_last_name: string;
+  next_of_kin_relationship: string;
+  next_of_kin_phone: string;
+  next_of_kin_email: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   reviewed_at?: string;
@@ -144,15 +161,16 @@ export default function KycSubmissionsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">KYC Submissions</h1>
-          <p className="text-muted-foreground">
-            Review and manage customer verification submissions
-          </p>
+    <AdminLayout>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">KYC Submissions</h1>
+            <p className="text-muted-foreground">
+              Review and manage customer verification submissions
+            </p>
+          </div>
         </div>
-      </div>
 
       {/* Filters */}
       <Card>
@@ -514,5 +532,6 @@ export default function KycSubmissionsPage() {
         </CardContent>
       </Card>
     </div>
-  );
+  </AdminLayout>
+);
 }

@@ -163,41 +163,7 @@ export const mockTransactions: Transaction[] = [
   },
 ];
 
-export const mockMemos: Memo[] = [
-  {
-    id: '1',
-    adminId: '1',
-    adminName: 'Admin User',
-    title: 'Market Update: Q1 2024 Performance',
-    content: 'We are pleased to share our Q1 2024 market performance update. Our diversified portfolio has shown strong resilience despite market volatility. Key highlights include:\n\n• Growth Equity Fund: +12.5% YTD\n• Stable Income Bond: +6.8% YTD\n• Real Estate REIT: +8.2% YTD\n\nWe continue to monitor market conditions closely and adjust our strategies accordingly.',
-    targetAudience: 'all',
-    status: 'published',
-    createdAt: '2024-01-19T10:30:00Z',
-    publishedAt: '2024-01-19T14:00:00Z',
-  },
-  {
-    id: '2',
-    adminId: '1',
-    adminName: 'Admin User',
-    title: 'Understanding Risk Management for Individual Investors',
-    content: 'As an individual investor, understanding risk management is crucial for long-term success. Here are key principles to consider:\n\n1. Diversification: Spread investments across different asset classes\n2. Risk Tolerance: Align investments with your comfort level\n3. Time Horizon: Consider your investment timeline\n4. Regular Review: Monitor and adjust your portfolio periodically\n\nOur team is always available to help you optimize your investment strategy.',
-    targetAudience: 'individual',
-    status: 'published',
-    createdAt: '2024-01-18T09:15:00Z',
-    publishedAt: '2024-01-18T12:00:00Z',
-  },
-  {
-    id: '3',
-    adminId: '1',
-    adminName: 'Admin User',
-    title: 'Joint Account Benefits and Tax Considerations',
-    content: 'Joint investment accounts offer unique advantages for couples and partners:\n\n• Shared Decision Making: Both parties can manage investments\n• Survivorship Rights: Automatic transfer upon death\n• Tax Benefits: Potential for income splitting strategies\n• Estate Planning: Simplified wealth transfer\n\nConsider consulting with our financial advisors to maximize these benefits while understanding the tax implications.',
-    targetAudience: 'joint',
-    status: 'published',
-    createdAt: '2024-01-17T14:20:00Z',
-    publishedAt: '2024-01-17T16:00:00Z',
-  },
-];
+
 
 export const mockAdmins: Admin[] = [
   {
@@ -289,5 +255,16 @@ export const mockKycSubmissions: KycSubmission[] = [
     reviewedAt: '2024-01-16T10:00:00Z',
     reviewedBy: 'Admin User',
     notes: 'All documents verified successfully',
+  },
+  {
+    id: '3',
+    userId: '3',
+    documentType: 'national_id',
+    documentUrl: '/documents/id-bob-johnson.pdf',
+    status: 'rejected',
+    submittedAt: '2024-01-05T11:45:00Z',
+    reviewedAt: '2024-01-07T16:30:00Z',
+    reviewedBy: 'Admin User',
+    notes: 'ID document was blurry and unreadable',
   },
 ];

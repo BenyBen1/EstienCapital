@@ -17,18 +17,19 @@ import {
   UserCheck,
   Users2,
   Calculator,
-  Clock
+  Clock,
+  FileText,
+  DollarSign,
+  ArrowUpCircle,
+  ArrowDownCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, FileText, TrendingUp, Settings, BarChart3, Calculator, Bell, DollarSign, ArrowUpCircle, ArrowDownCircle, UserCheck } from 'lucide-react';
+
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: BarChart3 },
   { 
-  { name: 'KYC Submissions', href: '/admin/kyc-submissions', icon: UserCheck },
-  { name: 'Deposits', href: '/admin/deposits', icon: ArrowUpCircle },
-  { name: 'Withdrawals', href: '/admin/withdrawals', icon: ArrowDownCircle },
     name: 'Users', 
     href: '/admin/users', 
     icon: Users,
@@ -37,11 +38,12 @@ const navigation = [
       { name: 'Joint Accounts', href: '/admin/users/joint', icon: Users2 },
     ]
   },
-  { name: 'Calculator', href: '/admin/calculator', icon: Calculator },
-  { name: 'Products', href: '/admin/products', icon: Package },
-  { name: 'Portfolios', href: '/admin/portfolios', icon: PieChart },
+  { name: 'KYC Submissions', href: '/admin/kyc-submissions', icon: FileText },
   { name: 'Transactions', href: '/admin/transactions', icon: CreditCard },
   { name: 'Transaction Requests', href: '/admin/transaction-requests', icon: Clock },
+  { name: 'Products', href: '/admin/products', icon: Package },
+  { name: 'Portfolios', href: '/admin/portfolios', icon: PieChart },
+  { name: 'Calculator', href: '/admin/calculator', icon: Calculator },
   { name: 'Memos', href: '/admin/memos', icon: MessageSquare },
   { name: 'Notifications', href: '/admin/notifications', icon: Bell },
   { name: 'Settings', href: '/admin/settings', icon: Settings },

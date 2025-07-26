@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { transactionsAPI, dashboardAPI } from '@/lib/api';
 import AdminLayout from '@/components/AdminLayout';
-import { Clock, CheckCircle, XCircle, AlertTriangle, DollarSign, Users, TrendingUp } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, AlertTriangle, DollarSign, Users, TrendingUp, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 
 interface TransactionRequest {
   id: string;
@@ -55,6 +55,7 @@ export default function TransactionRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [transactionType, setTransactionType] = useState<'all' | 'deposit' | 'withdrawal'>('all');
 
   const handleApprove = async (id: string) => {
     try {
@@ -147,25 +148,33 @@ export default function TransactionRequestsPage() {
   const filteredRequests = requests.filter(request => {
     if (activeTab === 'all') return true;
     return request.status.toLowerCase() === activeTab;
+  }).filter(request => {
+    if (transactionType === 'all') return true;
+    return request.type.toLowerCase() === transactionType;
   });
 
   const pendingCount = requests.filter(r => r.status.toLowerCase() === 'pending').length;
   const approvedCount = requests.filter(r => r.status.toLowerCase() === 'approved').length;
   const rejectedCount = requests.filter(r => r.status.toLowerCase() === 'rejected').length;
+  const depositCount = requests.filter(r => r.type.toLowerCase() === 'deposit').length;
+  const withdrawalCount = requests.filter(r => r.type.toLowerCase() === 'withdrawal').length;
 
   return (
     <AdminLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Transaction Requests</h1>
-          <p className="text-muted-foreground">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Transaction Requests</h1>
+          </div>
+          <p className="text-muted-foreground text-gray-600 mb-4">
             Review and manage all transaction requests from users
           </p>
+          <div className="h-1 w-20 bg-blue-500 rounded-full"></div>
         </div>
 
         {/* Metrics Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 pt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -228,12 +237,44 @@ export default function TransactionRequestsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Transaction Type Toggle */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex rounded-lg shadow-sm p-1 bg-gray-100" role="group">
+                <Button
+                  type="button"
+                  variant={transactionType === 'all' ? 'default' : 'outline'}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${transactionType === 'all' ? 'bg-white text-gray-900 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                  onClick={() => setTransactionType('all')}
+                >
+                  All Transactions ({requests.length})
+                </Button>
+                <Button
+                  type="button"
+                  variant={transactionType === 'deposit' ? 'default' : 'outline'}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ml-1 ${transactionType === 'deposit' ? 'bg-white text-green-700 shadow-sm border border-green-200' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                  onClick={() => setTransactionType('deposit')}
+                >
+                  <ArrowUpCircle className="h-4 w-4 mr-2" />
+                  Deposits ({depositCount})
+                </Button>
+                <Button
+                  type="button"
+                  variant={transactionType === 'withdrawal' ? 'default' : 'outline'}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ml-1 ${transactionType === 'withdrawal' ? 'bg-white text-red-700 shadow-sm border border-red-200' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                  onClick={() => setTransactionType('withdrawal')}
+                >
+                  <ArrowDownCircle className="h-4 w-4 mr-2" />
+                  Withdrawals ({withdrawalCount})
+                </Button>
+              </div>
+            </div>
+
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4 sticky top-0 z-10 bg-white">
-                <TabsTrigger value="all">All ({requests.length})</TabsTrigger>
-                <TabsTrigger value="pending">Pending ({pendingCount})</TabsTrigger>
-                <TabsTrigger value="approved">Approved ({approvedCount})</TabsTrigger>
-                <TabsTrigger value="rejected">Rejected ({rejectedCount})</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-4 sticky top-0 z-10 bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
+                <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">All ({filteredRequests.length})</TabsTrigger>
+                <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-yellow-100 data-[state=active]:text-yellow-700">Pending ({filteredRequests.filter(r => r.status.toLowerCase() === 'pending').length})</TabsTrigger>
+                <TabsTrigger value="approved" className="rounded-md data-[state=active]:bg-green-100 data-[state=active]:text-green-700">Approved ({filteredRequests.filter(r => r.status.toLowerCase() === 'approved').length})</TabsTrigger>
+                <TabsTrigger value="rejected" className="rounded-md data-[state=active]:bg-red-100 data-[state=active]:text-red-700">Rejected ({filteredRequests.filter(r => r.status.toLowerCase() === 'rejected').length})</TabsTrigger>
               </TabsList>
               
               <TabsContent value={activeTab} className="mt-6">
@@ -248,13 +289,12 @@ export default function TransactionRequestsPage() {
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No requests found</h3>
                     <p className="text-gray-500">
                       {activeTab === 'all' 
-                        ? 'No transaction requests available at the moment.' 
-                        : `No ${activeTab} transaction requests found.`
-                      }
+                        ? `No ${transactionType === 'all' ? '' : transactionType} transaction requests available at the moment.` 
+                        : `No ${activeTab} ${transactionType === 'all' ? '' : transactionType} transaction requests found.`}
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
                     {filteredRequests.map((request) => (
                       <div key={request.id} className="border rounded-lg p-6 hover:shadow-md transition-shadow">
                         <div className="flex items-start justify-between">
@@ -264,7 +304,7 @@ export default function TransactionRequestsPage() {
                               <span className="font-mono text-sm bg-gray-100 px-3 py-1 rounded-md font-medium">
                                 #{request.id.slice(-8)}
                               </span>
-                              <Badge variant="outline" className="capitalize font-medium">
+                              <Badge variant="outline" className={`capitalize font-medium ${request.type.toLowerCase() === 'deposit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                 {request.type}
                               </Badge>
                               <Badge className={`${getStatusColor(request.status)} font-medium flex items-center gap-1`}>
